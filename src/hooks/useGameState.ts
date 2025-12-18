@@ -180,7 +180,11 @@ export function useGameState() {
     setIsLoading(true);
     setError(null);
     try {
-      const mission = await llmService.generateMission(gameState.reputation, gameState.day);
+      const mission = await llmService.generateMission(
+        gameState.reputation,
+        gameState.day,
+        gameState.officers.length,
+      );
       setGameState((prev) => ({
         ...prev,
         activeMissions: [...prev.activeMissions, mission],
@@ -275,20 +279,23 @@ export function useGameState() {
           let updatedOfficers = prev.officers.map((o) => {
             if (
               result.casualties.some(
-                (name: string) => o.name.includes(name) || name.includes(o.name),
+                (name: string) => name.trim().toLowerCase() === o.name.trim().toLowerCase(),
               )
             ) {
               return { ...o, status: "KIA" as const, health: 0 };
             }
             if (
-              result.injuries.some((name: string) => o.name.includes(name) || name.includes(o.name))
+              result.injuries.some(
+                (name: string) => name.trim().toLowerCase() === o.name.trim().toLowerCase(),
+              )
             ) {
+              const injuryDays = Math.floor(Math.random() * 5) + 3;
               return {
                 ...o,
                 isInjured: true,
                 status: "Injured" as const,
                 health: Math.max(10, o.health - 30),
-                injuryDays: Math.floor(Math.random() * 5) + 3,
+                injuryDays,
               };
             }
             return o;
@@ -312,10 +319,27 @@ export function useGameState() {
 
             updatedOfficers = updatedOfficers.map((o) => {
               if (mission.assignedOfficers.includes(o.id) && o.status !== "KIA") {
+                const newExp = Math.min(100, o.experience + (result.success ? 10 : 3));
+                let newRank = o.rank;
+
+                // Promotion Logic
+                if (newExp >= 95 && o.rank !== "Lieutenant") newRank = "Lieutenant";
+                else if (newExp >= 75 && ["Rookie", "Officer", "Senior Officer"].includes(o.rank))
+                  newRank = "Sergeant";
+                else if (newExp >= 50 && ["Rookie", "Officer"].includes(o.rank))
+                  newRank = "Senior Officer";
+                else if (newExp >= 25 && o.rank === "Rookie") newRank = "Officer";
+
+                if (newRank !== o.rank) {
+                  addLog("Success", `PROMOTION: ${o.name} has been promoted to ${newRank}!`);
+                }
+
                 return {
                   ...o,
                   status: o.isInjured ? ("Injured" as const) : ("Available" as const),
-                  experience: Math.min(100, o.experience + (result.success ? 10 : 3)),
+                  experience: newExp,
+                  rank: newRank,
+                  salary: llmService.calculateSalary(newRank),
                   morale: Math.min(100, Math.max(0, o.morale + (result.success ? 5 : -10))),
                   missionsCompleted: o.missionsCompleted + 1,
                 };
@@ -444,9 +468,11 @@ export function useGameState() {
         const currentLevel = officer.gear[type];
         if (currentLevel >= 3) return prev;
 
-        const cost = currentLevel * 1000; // Level 2: 1k, Level 3: 2k
+        const cost = currentLevel * 1000;
         if (prev.budget < cost) {
-          // Trigger error if budget is too low
+          setError(
+            `Insufficient funds for ${type.replace("Level", "")} upgrade. Need $${cost.toLocaleString()}.`,
+          );
           return prev;
         }
 

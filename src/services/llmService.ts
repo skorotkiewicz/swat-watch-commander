@@ -142,10 +142,15 @@ Respond with ONLY valid JSON in this exact format:
   }
 }
 
-export async function generateMission(reputation: number, day: number): Promise<Mission> {
+export async function generateMission(
+  reputation: number,
+  day: number,
+  squadSize: number,
+): Promise<Mission> {
   const prompt = `Generate a realistic SWAT mission scenario.
 Current squad reputation: ${reputation}/100
 Current day: ${day}
+Current squad size: ${squadSize} officers.
 
 Higher reputation means more critical/high-profile missions become available.
 
@@ -157,7 +162,7 @@ Respond with ONLY valid JSON in this exact format:
   "priority": "Low" | "Medium" | "High" | "Critical",
   "location": "Specific location (e.g., 'Downtown First National Bank', 'Riverside Industrial Complex')",
   "estimatedDuration": "e.g., '2-4 hours'",
-  "requiredOfficers": 3-8,
+  "requiredOfficers": ${Math.max(2, Math.min(8, Math.floor(squadSize * 1.5)))},
   "requiredSpecializations": ["list", "of", "recommended", "specializations"],
   "riskLevel": 1-10,
   "rewards": {
@@ -193,9 +198,9 @@ Respond with ONLY valid JSON in this exact format:
       priority: data.priority,
       location: data.location,
       estimatedDuration: data.estimatedDuration,
-      requiredOfficers: data.requiredOfficers,
-      requiredSpecializations: data.requiredSpecializations,
-      riskLevel: Math.min(10, Math.max(1, data.riskLevel)),
+      requiredOfficers: data.requiredOfficers || 4,
+      requiredSpecializations: data.requiredSpecializations || [],
+      riskLevel: Math.min(10, Math.max(1, data.riskLevel || 5)),
       rewards: {
         experience: data.rewards.experience,
         reputation: data.rewards.reputation,
@@ -230,12 +235,13 @@ Briefing: ${mission.briefing}
 Risk Level: ${mission.riskLevel}/10
 
 Assigned Officers:
-${officers.map((o) => `- ${o.name} (${o.rank}, ${o.specialization}) - Health: ${o.health}%, Morale: ${o.morale}%`).join("\n")}
+${officers.map((o) => `- ${o.name} (${o.rank}, ${o.specialization}) - Health: ${o.health}%, Gear: Armor Lvl ${o.gear.armorLevel}, Weapons Lvl ${o.gear.weaponLevel}, Utility Lvl ${o.gear.utilityLevel}`).join("\n")}
 
 Previous Events:
 ${eventHistory || "Mission just started"}
 
 Generate a realistic tactical event that requires commander decision-making.
+Consider officer equipment levels (higher levels should provide more tactical opportunities or safety).
 ${previousEvents.length > 3 ? "Consider wrapping up the mission soon with a climactic event." : ""}
 
 Respond with ONLY valid JSON in this exact format:

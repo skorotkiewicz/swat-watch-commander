@@ -328,7 +328,9 @@ export async function resolveDecision(
 Mission: ${mission.title} (${mission.type})
 Current Event: ${event.description}
 Chosen Action: ${chosenOption.label} - ${chosenOption.description}
-Risk Level of Choice: ${chosenOption.riskLevel}/10
+Risk Level of Choice: ${chosenOption.id === "custom" ? "To be assessed by AI based on complexity" : `${chosenOption.riskLevel}/10`}
+
+${chosenOption.id === "custom" ? "IMPORTANT: This is a CUSTOM DIRECTIVE from the Commander. Assess its tactical soundess, risk, and potential for success based on the situation and squad capabilities." : ""}
 
 Officers involved:
 ${officers
@@ -340,9 +342,9 @@ ${officers
 
 ${chosenOption.requiredSpecialization ? `Note: This action benefits from a ${chosenOption.requiredSpecialization}. Team ${officers.some((o) => o.specialization === chosenOption.requiredSpecialization) ? "HAS" : "does NOT have"} this specialist.` : ""}
 
-Based on the risk level, officer capabilities, and realistic tactical outcomes, determine what happens.
-Higher risk choices have higher chance of casualties but potentially better outcomes.
-Consider officer skills and equipment (higher armor reduces injury risk, better weapons improve success) when determining success.
+Based on the tactical directive, officer capabilities, and realistic outcomes, determine what happens.
+If this was a CUSTOM DIRECTIVE, determine an appropriate success/failure rate based on how 'good' the tactical idea was.
+Consider officer skills and equipment when determining success.
 
 Respond with ONLY valid JSON:
 {

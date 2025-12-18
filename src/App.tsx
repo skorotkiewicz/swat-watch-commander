@@ -73,7 +73,9 @@ function App() {
         officers={gameState.officers}
         isLoading={isLoading}
         onGenerateEvent={() => generateMissionEvent(activeMissionId)}
-        onMakeDecision={makeDecision}
+        onMakeDecision={(eventId, option) => {
+          makeDecision(eventId, option);
+        }}
         onBack={() => setActiveMissionId(null)}
       />
     );

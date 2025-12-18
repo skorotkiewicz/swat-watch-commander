@@ -1,6 +1,6 @@
 // Mission Control Panel - Active mission management and decision making
 import { useState } from "react";
-import type { Mission, MissionEvent, Officer } from "../../types/game";
+import type { Mission, MissionEvent, MissionOption, Officer } from "../../types/game";
 import { OfficerCard } from "./OfficerCard";
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   officers: Officer[];
   isLoading: boolean;
   onGenerateEvent: () => void;
-  onMakeDecision: (eventId: string, optionId: string) => void;
+  onMakeDecision: (eventId: string, option: MissionOption) => void;
   onBack: () => void;
 }
 
@@ -23,6 +23,7 @@ export function MissionControlPanel({
   onBack,
 }: Props) {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [customDirective, setCustomDirective] = useState("");
   const assignedOfficers = officers.filter((o) => mission.assignedOfficers.includes(o.id));
   const latestEvent = events.filter((e) => !e.resolved).slice(-1)[0];
   const resolvedEvents = events.filter((e) => e.resolved);
@@ -196,12 +197,54 @@ export function MissionControlPanel({
                       </button>
                     ))}
 
+                    <div className="mt-4 pt-4 border-t border-slate-700">
+                      <h3 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-3">
+                        Commander's Directive (Custom):
+                      </h3>
+                      <div className="space-y-3">
+                        <textarea
+                          value={customDirective}
+                          onChange={(e) => {
+                            setCustomDirective(e.target.value);
+                            if (e.target.value.trim()) {
+                              setSelectedOption("custom");
+                            } else if (selectedOption === "custom") {
+                              setSelectedOption(null);
+                            }
+                          }}
+                          placeholder="Type your own tactical order here... (e.g., 'Breach through the kitchen window after throwing a flashbang')"
+                          className="w-full bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-white text-sm focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 outline-none transition-all placeholder:text-slate-500 h-24 resize-none"
+                        />
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() =>
-                        selectedOption && onMakeDecision(latestEvent.id, selectedOption)
+                      onClick={() => {
+                        if (selectedOption === "custom") {
+                          if (customDirective.trim()) {
+                            onMakeDecision(latestEvent.id, {
+                              id: "custom",
+                              label: "Custom Directive",
+                              description: customDirective.trim(),
+                              riskLevel: 5, // AI will assess
+                            });
+                            setCustomDirective("");
+                            setSelectedOption(null);
+                          }
+                        } else if (selectedOption) {
+                          const option = latestEvent.options?.find((o) => o.id === selectedOption);
+                          if (option) {
+                            onMakeDecision(latestEvent.id, option);
+                            setSelectedOption(null);
+                          }
+                        }
+                      }}
+                      disabled={
+                        (selectedOption !== "custom" && !selectedOption) ||
+                        (selectedOption === "custom" && !customDirective.trim()) ||
+                        isLoading
                       }
-                      disabled={!selectedOption || isLoading}
                       className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:from-slate-600 disabled:to-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg shadow-cyan-500/25 disabled:shadow-none flex items-center justify-center gap-2"
                     >
                       {isLoading ? (

@@ -1,7 +1,7 @@
 // Custom hook for managing game state
 import { useCallback, useEffect, useState } from "react";
 import * as llmService from "../services/llmService";
-import type { GameState, LogEntry, Mission, MissionEvent } from "../types/game";
+import type { GameState, LogEntry, Mission, MissionEvent, MissionOption } from "../types/game";
 
 const INITIAL_STATE: GameState = {
   commanderName: "",
@@ -258,12 +258,9 @@ export function useGameState() {
   );
 
   const makeDecision = useCallback(
-    async (eventId: string, optionId: string) => {
+    async (eventId: string, option: MissionOption) => {
       const event = gameState.currentMissionEvents.find((e) => e.id === eventId);
-      if (!event || !event.options) return;
-
-      const option = event.options.find((o) => o.id === optionId);
-      if (!option) return;
+      if (!event) return;
 
       const mission = gameState.activeMissions.find((m) => m.id === event.missionId);
       if (!mission) return;

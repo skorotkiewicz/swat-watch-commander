@@ -2,7 +2,9 @@
 
 **SWAT Watch Commander** is a high-stakes, tactical squad management simulation where you take command of an elite police unit. Powered by a Large Language Model (LLM) acting as a dynamic "Game Master," every mission, every encounter, and every consequence is unique.
 
-![](screenshot_main.png "Main")
+<p align="center">
+  <img src="screenshot_main.png" width="100%" />
+</p>
 
 <p align="center">
   <img src="screenshot_hq.png" width="48%" />

@@ -69,8 +69,12 @@ export function calculateSalary(rank: Officer["rank"]): number {
   return salaries[rank] || 1000;
 }
 
-export async function generateOfficer(existingNames: string[]): Promise<Officer> {
+export async function generateOfficer(
+  existingNames: string[],
+  specialization?: string,
+): Promise<Officer> {
   const prompt = `Generate a realistic SWAT officer profile. 
+${specialization ? `The officer MUST have the specialization: ${specialization}` : "Choose a specialization from: Assault, Sniper, Breacher, Medic, Negotiator, Tech Specialist"}
 Avoid these names already in the squad: ${existingNames.join(", ")}
 
 Respond with ONLY valid JSON in this exact format:

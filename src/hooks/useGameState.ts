@@ -113,29 +113,32 @@ export function useGameState() {
     setGameState(newState);
   }, []);
 
-  const recruitOfficer = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const existingNames = gameState.officers.map((o) => o.name);
-      const officer = await llmService.generateOfficer(existingNames);
+  const recruitOfficer = useCallback(
+    async (specialization?: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const existingNames = gameState.officers.map((o) => o.name);
+        const officer = await llmService.generateOfficer(existingNames, specialization);
 
-      setGameState((prev) => ({
-        ...prev,
-        officers: [...prev.officers, officer],
-        budget: prev.budget - 5000,
-      }));
-      addLog("Success", `Recruited ${officer.name} (${officer.specialization}) to the squad!`);
-      return officer;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to recruit officer";
-      setError(msg);
-      addLog("Error", msg);
-      throw e;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [gameState.officers, addLog]);
+        setGameState((prev) => ({
+          ...prev,
+          officers: [...prev.officers, officer],
+          budget: prev.budget - 5000,
+        }));
+        addLog("Success", `Recruited ${officer.name} (${officer.specialization}) to the squad!`);
+        return officer;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Failed to recruit officer";
+        setError(msg);
+        addLog("Error", msg);
+        throw e;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [gameState.officers, addLog],
+  );
 
   const dismissOfficer = useCallback(
     async (officerId: string, reason: string) => {

@@ -7,7 +7,7 @@ import { OfficerCard } from "./OfficerCard";
 interface Props {
   gameState: GameState;
   isLoading: boolean;
-  onRecruitOfficer: () => void;
+  onRecruitOfficer: (specialization?: string) => void;
   onDismissOfficer: (id: string, reason: string) => void;
   onGenerateMission: () => void;
   onDeclineMission: (id: string) => void;
@@ -32,6 +32,7 @@ export function Dashboard({
   const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs">("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
+  const [recruitSpec, setRecruitSpec] = useState<string | undefined>(undefined);
 
   const handleMissionClick = (mission: Mission) => {
     if (mission.status === "In Progress") {
@@ -272,13 +273,26 @@ export function Dashboard({
                   Unit Roster
                 </h2>
                 <div className="flex gap-3">
+                  <select
+                    value={recruitSpec || ""}
+                    onChange={(e) => setRecruitSpec(e.target.value || undefined)}
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+                  >
+                    <option value="">Random Spec</option>
+                    <option value="Assault">Assault</option>
+                    <option value="Sniper">Sniper</option>
+                    <option value="Breacher">Breacher</option>
+                    <option value="Medic">Medic</option>
+                    <option value="Negotiator">Negotiator</option>
+                    <option value="Tech Specialist">Tech Specialist</option>
+                  </select>
                   <button
                     type="button"
-                    onClick={onRecruitOfficer}
+                    onClick={() => onRecruitOfficer(recruitSpec)}
                     disabled={isLoading || gameState.budget < 5000}
                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 rounded-xl font-bold text-sm shadow-lg shadow-emerald-500/20 disabled:opacity-50 transition-all"
                   >
-                    {isLoading ? "Recruiting..." : "Recruit Officer ($5,000)"}
+                    {isLoading ? "Recruiting..." : "Recruit ($5k)"}
                   </button>
                 </div>
               </div>

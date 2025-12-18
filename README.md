@@ -11,11 +11,13 @@
 You don't just click buttons; you manage lives. Recruitment, tactical gear investment, departmental economics, and life-or-death decision-making all fall under your command.
 
 ### Key Features
-- **Dynamic Mission Generator**: No two missions are the same. A local LLM generates high-fidelity scenarios from high-rise hostage rescues to high-risk warrants.
-- **Persistent Squad Progression**: Officers gain experience, rank up from Rookie to Lieutenant, and increase their skills.
-- **Tactical Gear System**: Invest your budget into Elite Armor, Weapons, and Utility gear to increase your squad's survival rate.
-- **Economic Realism**: Manage daily city funding against officer payroll. You can't just throw bodies at a problem—every casualty and every dismissal has a cost.
-- **Narrative Resolution**: Decisions are resolved by the AI Game Master, factoring in officer skills, equipment levels, and tactical risk.
+- **Dynamic AI Game Master**: Powered by LLM reasoning, every mission briefing and tactical event is generated on-the-fly, creating infinite replayability.
+- **Specialized Squad Tactics**: Recruit officers for specific roles including Assault, Sniper, Breacher, Medic, Negotiator, and Tech Specialist.
+- **Persistent Ranks & XP**: Watch your recruits grow from **Rookie** to **Lieutenant**. Higher ranks command higher salaries but bring veteran experience to the field.
+- **Tactical Gear Upgrades**: Invest budget into Armor, Specialized Weapons, and Utility/Tech levels (1-3). Gear levels directly impact mission survival and success rates.
+- **Economic Strategy**: Balance a limited city budget against daily squad payroll, recruitment costs, and equipment upgrades.
+- **Solemn Memorial System**: Honor fallen officers with a dedicated funeral service and AI-generated eulogies. End-of-watch is permanent.
+- **Narrative-Driven Events**: Direct your team through branching tactical events where your decisions—and your team's gear—determine who comes home.
 
 ## 👮‍♂️ Legend of the Force
 > "My best officer is Lieutenant Elena Rodriguez. 17 missions. 17 successes. She's the backbone of this department." — *Commander's Log*

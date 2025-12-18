@@ -16,6 +16,8 @@ const INITIAL_STATE: GameState = {
   currentMissionEvents: [],
   gameLog: [],
   lastMissionResult: null,
+  missionsAttemptedToday: 0,
+  maxMissionsPerDay: 5,
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -52,6 +54,17 @@ export function useGameState() {
             ...l,
             timestamp: new Date(l.timestamp),
           })) || [];
+
+        // Migration for existing saves
+        if (parsed.missionsAttemptedToday === undefined) parsed.missionsAttemptedToday = 0;
+        if (parsed.maxMissionsPerDay === undefined) parsed.maxMissionsPerDay = 5;
+        if (parsed.officers) {
+          parsed.officers = parsed.officers.map((o: any) => ({
+            ...o,
+            salary: o.salary || llmService.calculateSalary(o.rank),
+          }));
+        }
+
         return parsed;
       } catch {
         return INITIAL_STATE;
@@ -154,6 +167,12 @@ export function useGameState() {
   );
 
   const generateMission = useCallback(async () => {
+    if (gameState.missionsAttemptedToday >= gameState.maxMissionsPerDay) {
+      throw new Error(
+        "Dispatch is currently overloaded. Advance the day to receive new briefings.",
+      );
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -161,6 +180,7 @@ export function useGameState() {
       setGameState((prev) => ({
         ...prev,
         activeMissions: [...prev.activeMissions, mission],
+        missionsAttemptedToday: prev.missionsAttemptedToday + 1,
       }));
       addLog("Mission", `New mission available: ${mission.title} (${mission.priority} priority)`);
       return mission;
@@ -172,7 +192,13 @@ export function useGameState() {
     } finally {
       setIsLoading(false);
     }
-  }, [gameState.reputation, gameState.day, addLog]);
+  }, [
+    gameState.reputation,
+    gameState.day,
+    gameState.missionsAttemptedToday,
+    gameState.maxMissionsPerDay,
+    addLog,
+  ]);
 
   const assignOfficersToMission = useCallback(
     (missionId: string, officerIds: string[]) => {
@@ -352,25 +378,37 @@ export function useGameState() {
   );
 
   const advanceDay = useCallback(() => {
-    setGameState((prev) => ({
-      ...prev,
-      day: prev.day + 1,
-      budget: prev.budget + 10000,
-      officers: prev.officers.map((o) => {
-        if (o.isInjured && o.injuryDays > 0) {
-          const newDays = o.injuryDays - 1;
-          return {
-            ...o,
-            injuryDays: newDays,
-            isInjured: newDays > 0,
-            status: newDays > 0 ? ("Injured" as const) : ("Available" as const),
-            health: Math.min(100, o.health + (newDays > 0 ? 5 : 20)),
-          };
-        }
-        return { ...o, morale: Math.min(100, o.morale + 2) };
-      }),
-    }));
-    addLog("Info", "New shift rotation begins. Budget replenished.");
+    setGameState((prev) => {
+      const totalSalaries = prev.officers
+        .filter((o) => o.status !== "KIA")
+        .reduce((acc, o) => acc + o.salary, 0);
+
+      const cityFunding = 10000;
+      const netBudgetChange = cityFunding - totalSalaries;
+
+      return {
+        ...prev,
+        day: prev.day + 1,
+        budget: prev.budget + netBudgetChange,
+        missionsAttemptedToday: 0,
+        // Clear unaccepted sessions, keep active ones
+        activeMissions: prev.activeMissions.filter((m) => m.status === "In Progress"),
+        officers: prev.officers.map((o) => {
+          if (o.isInjured && o.injuryDays > 0) {
+            const newDays = o.injuryDays - 1;
+            return {
+              ...o,
+              injuryDays: newDays,
+              isInjured: newDays > 0,
+              status: newDays > 0 ? ("Injured" as const) : ("Available" as const),
+              health: Math.min(100, o.health + (newDays > 0 ? 5 : 20)),
+            };
+          }
+          return { ...o, morale: Math.min(100, o.morale + 2) };
+        }),
+      };
+    });
+    addLog("Info", "New shift rotation begins. Payroll processed. Dispatch radio refreshed.");
   }, [addLog]);
 
   const declineMission = useCallback(

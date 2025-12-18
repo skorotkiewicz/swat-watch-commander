@@ -90,6 +90,14 @@ export function Dashboard({
             </div>
             <div className="text-center">
               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">
+                Dispatch
+              </p>
+              <p className="text-sm font-bold text-white">
+                {gameState.missionsAttemptedToday}/{gameState.maxMissionsPerDay} Briefs
+              </p>
+            </div>
+            <div className="text-center">
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">
                 Reputation
               </p>
               <div className="flex items-center gap-2">
@@ -190,6 +198,20 @@ export function Dashboard({
                     {gameState.officers.filter((o) => o.status === "KIA").length}
                   </span>
                 </div>
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800">
+                  <span className="text-slate-400">Daily Payroll</span>
+                  <span className="text-red-400 font-bold">
+                    -$
+                    {gameState.officers
+                      .filter((o) => o.status !== "KIA")
+                      .reduce((acc, o) => acc + o.salary, 0)
+                      .toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">City Funding</span>
+                  <span className="text-emerald-400 font-bold">+$10,000</span>
+                </div>
               </div>
             </div>
           </div>
@@ -206,8 +228,10 @@ export function Dashboard({
                 <button
                   type="button"
                   onClick={onGenerateMission}
-                  disabled={isLoading}
-                  className="group flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 border border-cyan-500/30 rounded-xl font-bold text-sm transition-all"
+                  disabled={
+                    isLoading || gameState.missionsAttemptedToday >= gameState.maxMissionsPerDay
+                  }
+                  className="group flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 border border-cyan-500/30 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:grayscale"
                 >
                   {isLoading ? (
                     <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent animate-spin rounded-full" />

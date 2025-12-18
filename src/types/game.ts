@@ -19,6 +19,7 @@ export interface Officer {
   isInjured: boolean;
   injuryDays: number;
   status: "Available" | "On Mission" | "Injured" | "On Leave" | "KIA";
+  salary: number;
   backstory?: string;
 }
 
@@ -97,6 +98,8 @@ export interface GameState {
   currentMissionEvents: MissionEvent[];
   gameLog: LogEntry[];
   lastMissionResult?: MissionResult | null;
+  missionsAttemptedToday: number;
+  maxMissionsPerDay: number;
 }
 
 export interface LogEntry {

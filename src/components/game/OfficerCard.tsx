@@ -201,9 +201,16 @@ export function OfficerCard({
 
         {/* Stats row */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">
-          <span className="text-slate-500">
-            Missions: <span className="text-white font-semibold">{officer.missionsCompleted}</span>
-          </span>
+          <div className="flex gap-3">
+            <span className="text-slate-500">
+              Missions:{" "}
+              <span className="text-white font-semibold">{officer.missionsCompleted}</span>
+            </span>
+            <span className="text-slate-500">
+              Daily:{" "}
+              <span className="text-red-400 font-semibold">${officer.salary.toLocaleString()}</span>
+            </span>
+          </div>
           {officer.isInjured && (
             <span className="text-red-400">Recovery: {officer.injuryDays} days</span>
           )}

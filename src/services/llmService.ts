@@ -58,6 +58,17 @@ function extractJSON(response: string): unknown {
   return JSON.parse(jsonMatch[0]);
 }
 
+export function calculateSalary(rank: Officer["rank"]): number {
+  const salaries: Record<Officer["rank"], number> = {
+    Rookie: 500,
+    Officer: 1200,
+    "Senior Officer": 2000,
+    Sergeant: 3500,
+    Lieutenant: 5000,
+  };
+  return salaries[rank] || 1000;
+}
+
 export async function generateOfficer(existingNames: string[]): Promise<Officer> {
   const prompt = `Generate a realistic SWAT officer profile. 
 Avoid these names already in the squad: ${existingNames.join(", ")}
@@ -113,6 +124,7 @@ Respond with ONLY valid JSON in this exact format:
       isInjured: false,
       injuryDays: 0,
       status: "Available",
+      salary: calculateSalary(data.rank),
       backstory: data.backstory,
     };
   } catch (e) {

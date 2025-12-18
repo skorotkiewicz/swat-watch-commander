@@ -21,6 +21,7 @@ export function MissionReportModal({ result, onClose }: Props) {
           >
             {success ? (
               <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <title>Success Icon</title>
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -30,6 +31,7 @@ export function MissionReportModal({ result, onClose }: Props) {
               </svg>
             ) : (
               <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <title>Failure Icon</title>
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

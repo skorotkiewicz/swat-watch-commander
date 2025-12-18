@@ -8,6 +8,7 @@ interface Props {
   onDismiss?: () => void;
   showActions?: boolean;
   compact?: boolean;
+  onUpgradeGear?: (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => void;
 }
 
 const specializationColors: Record<string, string> = {
@@ -42,6 +43,7 @@ export function OfficerCard({
   onDismiss,
   showActions = false,
   compact = false,
+  onUpgradeGear,
 }: Props) {
   const gradientClass =
     specializationColors[officer.specialization] || "from-slate-500 to-slate-600";
@@ -194,10 +196,113 @@ export function OfficerCard({
 
         {/* Backstory */}
         {officer.backstory && (
-          <div className="pt-3 border-t border-slate-800">
-            <p className="text-xs text-slate-400 italic line-clamp-2">{officer.backstory}</p>
+          <div className="pt-1">
+            <p className="text-[11px] text-slate-400 italic line-clamp-2 leading-relaxed">
+              "{officer.backstory}"
+            </p>
           </div>
         )}
+
+        {/* Tactical Gear */}
+        <div className="pt-3 border-t border-slate-800">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest">
+              Tactical Gear
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(["armorLevel", "weaponLevel", "utilityLevel"] as const).map((type) => {
+              const level = officer.gear[type];
+              const cost = level * 1000;
+
+              const GearIcon = () => {
+                if (type === "armorLevel") {
+                  return (
+                    <svg
+                      className="w-4 h-4 text-cyan-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <title>Armor</title>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                      />
+                    </svg>
+                  );
+                }
+                if (type === "weaponLevel") {
+                  return (
+                    <svg
+                      className="w-4 h-4 text-red-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <title>Weapon</title>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 10l5 5m0-5l-5 5m-5-5l12 12"
+                      />
+                      <circle cx="12" cy="12" r="9" strokeWidth={2} />
+                    </svg>
+                  );
+                }
+                return (
+                  <svg
+                    className="w-4 h-4 text-purple-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <title>Utility</title>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
+                    />
+                  </svg>
+                );
+              };
+
+              return (
+                <div key={type} className="bg-slate-950/50 rounded-lg p-2 border border-slate-800">
+                  <div className="flex items-center justify-between mb-1">
+                    <GearIcon />
+                    <div className="flex gap-0.5">
+                      {[1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className={`w-1.5 h-1.5 rounded-full ${i <= level ? "bg-cyan-400" : "bg-slate-800"}`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {onUpgradeGear && level < 3 && officer.status === "Available" && (
+                    <button
+                      type="button"
+                      onClick={() => onUpgradeGear(officer.id, type)}
+                      className="w-full mt-1 py-1 bg-slate-800 hover:bg-slate-700 text-[9px] font-black uppercase rounded border border-slate-700 transition-colors"
+                    >
+                      Up (${(cost / 1000).toFixed(0)}k)
+                    </button>
+                  )}
+                  {level === 3 && (
+                    <div className="w-full mt-1 py-1 text-center text-[8px] font-black text-cyan-500 uppercase">
+                      Elite
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {/* Stats row */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-800 text-xs">

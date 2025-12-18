@@ -130,6 +130,11 @@ Respond with ONLY valid JSON in this exact format:
       status: "Available",
       salary: calculateSalary(data.rank),
       backstory: data.backstory,
+      gear: {
+        armorLevel: 1,
+        weaponLevel: 1,
+        utilityLevel: 1,
+      },
     };
   } catch (e) {
     console.error("Failed to parse officer:", e, response);
@@ -306,13 +311,18 @@ Chosen Action: ${chosenOption.label} - ${chosenOption.description}
 Risk Level of Choice: ${chosenOption.riskLevel}/10
 
 Officers involved:
-${officers.map((o) => `- ${o.name} (${o.specialization}) - Health: ${o.health}%, Skills: Marksmanship ${o.skills.marksmanship}, Tactics ${o.skills.tactics}, Composure ${o.skills.composure}`).join("\n")}
+${officers
+  .map(
+    (o) =>
+      `- ${o.name} (${o.specialization}) - Health: ${o.health}%, Skills: Marksmanship ${o.skills.marksmanship}, Tactics ${o.skills.tactics}, Composure ${o.skills.composure}. Gear: Armor Lvl ${o.gear.armorLevel}, Weapons Lvl ${o.gear.weaponLevel}, Utility Lvl ${o.gear.utilityLevel}`,
+  )
+  .join("\n")}
 
 ${chosenOption.requiredSpecialization ? `Note: This action benefits from a ${chosenOption.requiredSpecialization}. Team ${officers.some((o) => o.specialization === chosenOption.requiredSpecialization) ? "HAS" : "does NOT have"} this specialist.` : ""}
 
 Based on the risk level, officer capabilities, and realistic tactical outcomes, determine what happens.
 Higher risk choices have higher chance of casualties but potentially better outcomes.
-Consider officer skills when determining success.
+Consider officer skills and equipment (higher armor reduces injury risk, better weapons improve success) when determining success.
 
 Respond with ONLY valid JSON:
 {

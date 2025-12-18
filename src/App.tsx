@@ -19,6 +19,7 @@ function App() {
     makeDecision,
     advanceDay,
     declineMission,
+    upgradeGear,
     resetGame,
     clearMissionResult,
     clearError,
@@ -72,6 +73,7 @@ function App() {
         onAdvanceDay={advanceDay}
         onResetGame={resetGame}
         onViewActiveMission={(mission) => setActiveMissionId(mission.id)}
+        onUpgradeGear={upgradeGear}
       />
 
       {/* Mission Report Modal */}

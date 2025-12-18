@@ -62,6 +62,7 @@ export function useGameState() {
           parsed.officers = parsed.officers.map((o: any) => ({
             ...o,
             salary: o.salary || llmService.calculateSalary(o.rank),
+            gear: o.gear || { armorLevel: 1, weaponLevel: 1, utilityLevel: 1 },
           }));
         }
 
@@ -434,6 +435,43 @@ export function useGameState() {
     setGameState((prev) => ({ ...prev, lastMissionResult: null }));
   }, []);
 
+  const upgradeGear = useCallback(
+    (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => {
+      setGameState((prev) => {
+        const officer = prev.officers.find((o) => o.id === officerId);
+        if (!officer || officer.status === "KIA") return prev;
+
+        const currentLevel = officer.gear[type];
+        if (currentLevel >= 3) return prev;
+
+        const cost = currentLevel * 1000; // Level 2: 1k, Level 3: 2k
+        if (prev.budget < cost) {
+          // Trigger error if budget is too low
+          return prev;
+        }
+
+        const typeName = type.replace("Level", "");
+        return {
+          ...prev,
+          budget: prev.budget - cost,
+          officers: prev.officers.map((o) =>
+            o.id === officerId ? { ...o, gear: { ...o.gear, [type]: currentLevel + 1 } } : o,
+          ),
+          gameLog: [
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date(),
+              type: "Success" as const,
+              message: `Upgraded ${officer.name}'s ${typeName} to Level ${currentLevel + 1}.`,
+            },
+            ...prev.gameLog,
+          ].slice(0, 100),
+        };
+      });
+    },
+    [],
+  );
+
   const resetGame = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setGameState(INITIAL_STATE);
@@ -452,6 +490,7 @@ export function useGameState() {
     makeDecision,
     advanceDay,
     declineMission,
+    upgradeGear,
     resetGame,
     clearMissionResult,
     clearError: () => setError(null),

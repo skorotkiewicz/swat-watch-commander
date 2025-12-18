@@ -1,5 +1,11 @@
 // SWAT Watch Commander Game Types
 
+export interface Gear {
+  armorLevel: number; // 1-3
+  weaponLevel: number; // 1-3
+  utilityLevel: number; // 1-3
+}
+
 export interface Officer {
   id: string;
   name: string;
@@ -21,6 +27,7 @@ export interface Officer {
   status: "Available" | "On Mission" | "Injured" | "On Leave" | "KIA";
   salary: number;
   backstory?: string;
+  gear: Gear;
 }
 
 export interface Mission {

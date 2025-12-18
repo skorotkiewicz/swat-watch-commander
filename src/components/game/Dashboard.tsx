@@ -15,6 +15,7 @@ interface Props {
   onAdvanceDay: () => void;
   onResetGame: () => void;
   onViewActiveMission: (mission: Mission) => void;
+  onUpgradeGear: (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => void;
 }
 
 export function Dashboard({
@@ -28,6 +29,7 @@ export function Dashboard({
   onAdvanceDay,
   onResetGame,
   onViewActiveMission,
+  onUpgradeGear,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs">("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
@@ -314,6 +316,7 @@ export function Dashboard({
                         const reason = prompt("Enter reason for dismissal:");
                         if (reason) onDismissOfficer(o.id, reason);
                       }}
+                      onUpgradeGear={onUpgradeGear}
                     />
                   ))
                 )}

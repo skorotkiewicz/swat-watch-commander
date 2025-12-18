@@ -152,6 +152,7 @@ export function useGameState() {
         setGameState((prev) => ({
           ...prev,
           officers: prev.officers.filter((o) => o.id !== officerId),
+          lastDismissedOfficer: officer,
         }));
         addLog("Warning", `Dismissed ${officer.name}: ${reason}`);
         return dialogue;
@@ -161,6 +162,7 @@ export function useGameState() {
         setGameState((prev) => ({
           ...prev,
           officers: prev.officers.filter((o) => o.id !== officerId),
+          lastDismissedOfficer: officer,
         }));
         addLog("Warning", `Dismissed ${officer.name}: ${reason}`);
       } finally {
@@ -169,6 +171,18 @@ export function useGameState() {
     },
     [gameState.officers, addLog],
   );
+
+  const rehireLastOfficer = useCallback(() => {
+    if (!gameState.lastDismissedOfficer) return;
+
+    const officer = gameState.lastDismissedOfficer;
+    setGameState((prev) => ({
+      ...prev,
+      officers: [...prev.officers, officer],
+      lastDismissedOfficer: null,
+    }));
+    addLog("Success", `Re-hired ${officer.name}! Welcome back to the squad.`);
+  }, [gameState.lastDismissedOfficer, addLog]);
 
   const generateMission = useCallback(async () => {
     if (gameState.missionsAttemptedToday >= gameState.maxMissionsPerDay) {
@@ -514,6 +528,7 @@ export function useGameState() {
     advanceDay,
     declineMission,
     upgradeGear,
+    rehireLastOfficer,
     honorFallen: (officerId: string) => {
       setGameState((prev) => ({
         ...prev,

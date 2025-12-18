@@ -24,6 +24,7 @@ function App() {
     advanceDay,
     declineMission,
     upgradeGear,
+    rehireLastOfficer,
     honorFallen,
     resetGame,
     clearMissionResult,
@@ -126,6 +127,7 @@ function App() {
         onViewActiveMission={(mission: Mission) => setActiveMissionId(mission.id)}
         onUpgradeGear={upgradeGear}
         onHonorFallen={handleHonorFallen}
+        onRehireLastOfficer={rehireLastOfficer}
       />
 
       {/* Funeral Modal */}

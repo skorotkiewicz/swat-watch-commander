@@ -107,6 +107,7 @@ export interface GameState {
   lastMissionResult?: MissionResult | null;
   missionsAttemptedToday: number;
   maxMissionsPerDay: number;
+  lastDismissedOfficer?: Officer | null;
 }
 
 export interface LogEntry {

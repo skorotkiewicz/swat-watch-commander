@@ -17,6 +17,7 @@ interface Props {
   onViewActiveMission: (mission: Mission) => void;
   onUpgradeGear: (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => void;
   onHonorFallen: (officerId: string) => void;
+  onRehireLastOfficer?: () => void;
 }
 
 export function Dashboard({
@@ -32,6 +33,7 @@ export function Dashboard({
   onViewActiveMission,
   onUpgradeGear,
   onHonorFallen,
+  onRehireLastOfficer,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs">("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
@@ -174,6 +176,22 @@ export function Dashboard({
           >
             <span>📜</span> Radio Log
           </button>
+
+          {gameState.lastDismissedOfficer && onRehireLastOfficer && (
+            <button
+              type="button"
+              onClick={onRehireLastOfficer}
+              className="mt-2 flex flex-col items-start gap-1 px-4 py-3 rounded-xl font-bold bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 transition-all group"
+            >
+              <div className="flex items-center gap-2">
+                <span className="group-hover:rotate-[-15deg] transition-transform">🔄</span>
+                <span>Undo Dismissal</span>
+              </div>
+              <span className="text-[10px] opacity-70 font-medium">
+                Re-hire {gameState.lastDismissedOfficer.name}
+              </span>
+            </button>
+          )}
 
           <div className="mt-auto pt-6 border-t border-slate-800">
             <div className="bg-slate-900/50 p-4 rounded-2xl border border-slate-800/50">

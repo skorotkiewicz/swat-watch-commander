@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Dashboard } from "./components/game/Dashboard";
 import { MissionControlPanel } from "./components/game/MissionControlPanel";
+import { MissionReportModal } from "./components/game/MissionReportModal";
 import { SetupScreen } from "./components/game/SetupScreen";
 import { useGameState } from "./hooks/useGameState";
 
@@ -19,6 +20,7 @@ function App() {
     advanceDay,
     declineMission,
     resetGame,
+    clearMissionResult,
     clearError,
   } = useGameState();
 
@@ -71,6 +73,17 @@ function App() {
         onResetGame={resetGame}
         onViewActiveMission={(mission) => setActiveMissionId(mission.id)}
       />
+
+      {/* Mission Report Modal */}
+      {gameState.lastMissionResult && (
+        <MissionReportModal
+          result={gameState.lastMissionResult}
+          onClose={() => {
+            clearMissionResult();
+            setActiveMissionId(null);
+          }}
+        />
+      )}
 
       {/* Global Error Notification */}
       {error && (

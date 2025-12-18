@@ -43,6 +43,7 @@ export interface Mission {
   rewards: {
     experience: number;
     reputation: number;
+    budget: number;
   };
   briefing: string;
   status: "Available" | "In Progress" | "Completed" | "Failed" | "Declined";
@@ -70,6 +71,19 @@ export interface MissionOption {
   requiredSpecialization?: string;
 }
 
+export interface MissionResult {
+  mission: Mission;
+  success: boolean;
+  outcome: string;
+  casualties: string[];
+  injuries: string[];
+  rewards: {
+    experience: number;
+    reputation: number;
+    budget: number;
+  };
+}
+
 export interface GameState {
   commanderName: string;
   squadName: string;
@@ -82,6 +96,7 @@ export interface GameState {
   day: number;
   currentMissionEvents: MissionEvent[];
   gameLog: LogEntry[];
+  lastMissionResult?: MissionResult | null;
 }
 
 export interface LogEntry {

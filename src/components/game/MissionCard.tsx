@@ -142,6 +142,10 @@ export function MissionCard({
             <span className="text-cyan-400">
               <span className="text-slate-500">Rep:</span> +{mission.rewards.reputation}
             </span>
+            <span className="text-emerald-400">
+              <span className="text-slate-500">Fund:</span> $
+              {mission.rewards.budget.toLocaleString()}
+            </span>
           </div>
         </div>
       </div>

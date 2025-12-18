@@ -141,7 +141,8 @@ Respond with ONLY valid JSON in this exact format:
   "riskLevel": 1-10,
   "rewards": {
     "experience": 50-200,
-    "reputation": 5-25
+    "reputation": 5-25,
+    "budget": 5000-50000
   },
   "briefing": "Detailed 3-5 sentence tactical briefing with intel about the situation, suspects, potential hostages, building layout hints, and known threats"
 }`;
@@ -159,7 +160,7 @@ Respond with ONLY valid JSON in this exact format:
       requiredOfficers: number;
       requiredSpecializations: string[];
       riskLevel: number;
-      rewards: { experience: number; reputation: number };
+      rewards: { experience: number; reputation: number; budget: number };
       briefing: string;
     };
 
@@ -177,6 +178,7 @@ Respond with ONLY valid JSON in this exact format:
       rewards: {
         experience: data.rewards.experience,
         reputation: data.rewards.reputation,
+        budget: data.rewards.budget,
       },
       briefing: data.briefing,
       status: "Available",

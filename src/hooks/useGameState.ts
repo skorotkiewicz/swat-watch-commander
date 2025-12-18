@@ -1,5 +1,5 @@
 // Custom hook for managing game state
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import * as llmService from "../services/llmService";
 import type { GameState, LogEntry, Mission, MissionEvent } from "../types/game";
 
@@ -15,6 +15,7 @@ const INITIAL_STATE: GameState = {
   day: 1,
   currentMissionEvents: [],
   gameLog: [],
+  lastMissionResult: null,
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -33,6 +34,11 @@ export function useGameState() {
           })) || [];
         parsed.completedMissions =
           parsed.completedMissions?.map((m: Mission) => ({
+            ...m,
+            createdAt: new Date(m.createdAt),
+          })) || [];
+        parsed.failedMissions =
+          parsed.failedMissions?.map((m: Mission) => ({
             ...m,
             createdAt: new Date(m.createdAt),
           })) || [];
@@ -57,51 +63,43 @@ export function useGameState() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Save game state to localStorage whenever it changes
-  const saveState = useCallback((newState: GameState) => {
-    setGameState(newState);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-  }, []);
+  // Persist state to localStorage on every change
+  useEffect(() => {
+    if (gameState.commanderName) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+    }
+  }, [gameState]);
 
   const addLog = useCallback((type: LogEntry["type"], message: string) => {
-    setGameState((prev) => {
-      const entry: LogEntry = {
-        id: crypto.randomUUID(),
-        timestamp: new Date(),
-        type,
-        message,
-      };
-      const newState = {
-        ...prev,
-        gameLog: [entry, ...prev.gameLog].slice(0, 100), // Keep last 100 logs
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newState));
-      return newState;
-    });
+    const entry: LogEntry = {
+      id: crypto.randomUUID(),
+      timestamp: new Date(),
+      type,
+      message,
+    };
+    setGameState((prev) => ({
+      ...prev,
+      gameLog: [entry, ...prev.gameLog].slice(0, 100),
+    }));
   }, []);
 
-  // Initialize new game
-  const startNewGame = useCallback(
-    (commanderName: string, squadName: string) => {
-      const newState: GameState = {
-        ...INITIAL_STATE,
-        commanderName,
-        squadName,
-        gameLog: [
-          {
-            id: crypto.randomUUID(),
-            timestamp: new Date(),
-            type: "Info",
-            message: `Commander ${commanderName} has taken command of ${squadName}. Recruiting officers...`,
-          },
-        ],
-      };
-      saveState(newState);
-    },
-    [saveState],
-  );
+  const startNewGame = useCallback((commanderName: string, squadName: string) => {
+    const newState: GameState = {
+      ...INITIAL_STATE,
+      commanderName,
+      squadName,
+      gameLog: [
+        {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "Info",
+          message: `Commander ${commanderName} has taken command of ${squadName}.`,
+        },
+      ],
+    };
+    setGameState(newState);
+  }, []);
 
-  // Generate and recruit new officer
   const recruitOfficer = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -109,12 +107,11 @@ export function useGameState() {
       const existingNames = gameState.officers.map((o) => o.name);
       const officer = await llmService.generateOfficer(existingNames);
 
-      const newState = {
-        ...gameState,
-        officers: [...gameState.officers, officer],
-        budget: gameState.budget - 5000, // Recruitment cost
-      };
-      saveState(newState);
+      setGameState((prev) => ({
+        ...prev,
+        officers: [...prev.officers, officer],
+        budget: prev.budget - 5000,
+      }));
       addLog("Success", `Recruited ${officer.name} (${officer.specialization}) to the squad!`);
       return officer;
     } catch (e) {
@@ -125,9 +122,8 @@ export function useGameState() {
     } finally {
       setIsLoading(false);
     }
-  }, [gameState, saveState, addLog]);
+  }, [gameState.officers, addLog]);
 
-  // Dismiss officer
   const dismissOfficer = useCallback(
     async (officerId: string, reason: string) => {
       const officer = gameState.officers.find((o) => o.id === officerId);
@@ -136,43 +132,36 @@ export function useGameState() {
       setIsLoading(true);
       try {
         const dialogue = await llmService.generateDismissalDialogue(officer, reason);
-
-        const newState = {
-          ...gameState,
-          officers: gameState.officers.filter((o) => o.id !== officerId),
-        };
-        saveState(newState);
+        setGameState((prev) => ({
+          ...prev,
+          officers: prev.officers.filter((o) => o.id !== officerId),
+        }));
         addLog("Warning", `Dismissed ${officer.name}: ${reason}`);
         return dialogue;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to dismiss officer";
         setError(msg);
-        // Still dismiss even if dialogue fails
-        const newState = {
-          ...gameState,
-          officers: gameState.officers.filter((o) => o.id !== officerId),
-        };
-        saveState(newState);
+        setGameState((prev) => ({
+          ...prev,
+          officers: prev.officers.filter((o) => o.id !== officerId),
+        }));
         addLog("Warning", `Dismissed ${officer.name}: ${reason}`);
       } finally {
         setIsLoading(false);
       }
     },
-    [gameState, saveState, addLog],
+    [gameState.officers, addLog],
   );
 
-  // Generate new mission
   const generateMission = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const mission = await llmService.generateMission(gameState.reputation, gameState.day);
-
-      const newState = {
-        ...gameState,
-        activeMissions: [...gameState.activeMissions, mission],
-      };
-      saveState(newState);
+      setGameState((prev) => ({
+        ...prev,
+        activeMissions: [...prev.activeMissions, mission],
+      }));
       addLog("Mission", `New mission available: ${mission.title} (${mission.priority} priority)`);
       return mission;
     } catch (e) {
@@ -183,29 +172,26 @@ export function useGameState() {
     } finally {
       setIsLoading(false);
     }
-  }, [gameState, saveState, addLog]);
+  }, [gameState.reputation, gameState.day, addLog]);
 
-  // Assign officers to mission
   const assignOfficersToMission = useCallback(
     (missionId: string, officerIds: string[]) => {
-      const newState = {
-        ...gameState,
-        activeMissions: gameState.activeMissions.map((m) =>
+      setGameState((prev) => ({
+        ...prev,
+        activeMissions: prev.activeMissions.map((m) =>
           m.id === missionId
             ? { ...m, assignedOfficers: officerIds, status: "In Progress" as const }
             : m,
         ),
-        officers: gameState.officers.map((o) =>
+        officers: prev.officers.map((o) =>
           officerIds.includes(o.id) ? { ...o, status: "On Mission" as const } : o,
         ),
-      };
-      saveState(newState);
+      }));
       addLog("Info", "Officers deployed to mission");
     },
-    [gameState, saveState, addLog],
+    [addLog],
   );
 
-  // Generate mission event
   const generateMissionEvent = useCallback(
     async (missionId: string) => {
       const mission = gameState.activeMissions.find((m) => m.id === missionId);
@@ -220,12 +206,10 @@ export function useGameState() {
       setError(null);
       try {
         const event = await llmService.generateMissionEvent(mission, officers, previousEvents);
-
-        const newState = {
-          ...gameState,
-          currentMissionEvents: [...gameState.currentMissionEvents, event],
-        };
-        saveState(newState);
+        setGameState((prev) => ({
+          ...prev,
+          currentMissionEvents: [...prev.currentMissionEvents, event],
+        }));
         return event;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Failed to generate event";
@@ -236,10 +220,9 @@ export function useGameState() {
         setIsLoading(false);
       }
     },
-    [gameState, saveState, addLog],
+    [gameState.activeMissions, gameState.officers, gameState.currentMissionEvents, addLog],
   );
 
-  // Make decision on event
   const makeDecision = useCallback(
     async (eventId: string, optionId: string) => {
       const event = gameState.currentMissionEvents.find((e) => e.id === eventId);
@@ -258,92 +241,98 @@ export function useGameState() {
       try {
         const result = await llmService.resolveDecision(mission, event, option, officers);
 
-        // Update officers based on casualties/injuries
-        let updatedOfficers = gameState.officers.map((o) => {
-          if (
-            result.casualties.some((name: string) => o.name.includes(name) || name.includes(o.name))
-          ) {
-            return { ...o, status: "KIA" as const, health: 0 };
-          }
-          if (
-            result.injuries.some((name: string) => o.name.includes(name) || name.includes(o.name))
-          ) {
-            return {
-              ...o,
-              isInjured: true,
-              status: "Injured" as const,
-              health: Math.max(10, o.health - 30),
-              injuryDays: Math.floor(Math.random() * 5) + 3,
-            };
-          }
-          return o;
-        });
-
-        // Update event as resolved
-        const updatedEvents = gameState.currentMissionEvents.map((e) =>
-          e.id === eventId ? { ...e, resolved: true, outcome: result.outcome } : e,
-        );
-
-        let newState: GameState = {
-          ...gameState,
-          officers: updatedOfficers,
-          currentMissionEvents: updatedEvents,
-        };
-
-        // If mission complete, move to appropriate list and free officers
-        if (result.missionComplete) {
-          const completedMission = {
-            ...mission,
-            status: result.success ? ("Completed" as const) : ("Failed" as const),
-          };
-
-          // Update officer stats
-          updatedOfficers = updatedOfficers.map((o) => {
-            if (mission.assignedOfficers.includes(o.id) && o.status !== "KIA") {
+        setGameState((prev) => {
+          let updatedOfficers = prev.officers.map((o) => {
+            if (
+              result.casualties.some(
+                (name: string) => o.name.includes(name) || name.includes(o.name),
+              )
+            ) {
+              return { ...o, status: "KIA" as const, health: 0 };
+            }
+            if (
+              result.injuries.some((name: string) => o.name.includes(name) || name.includes(o.name))
+            ) {
               return {
                 ...o,
-                status: o.isInjured ? ("Injured" as const) : ("Available" as const),
-                experience: Math.min(100, o.experience + (result.success ? 10 : 3)),
-                morale: Math.min(100, Math.max(0, o.morale + (result.success ? 5 : -10))),
-                missionsCompleted: o.missionsCompleted + 1,
+                isInjured: true,
+                status: "Injured" as const,
+                health: Math.max(10, o.health - 30),
+                injuryDays: Math.floor(Math.random() * 5) + 3,
               };
             }
             return o;
           });
 
-          newState = {
-            ...newState,
+          const updatedEvents = prev.currentMissionEvents.map((e) =>
+            e.id === eventId ? { ...e, resolved: true, outcome: result.outcome } : e,
+          );
+
+          let nextState: GameState = {
+            ...prev,
             officers: updatedOfficers,
-            activeMissions: gameState.activeMissions.filter((m) => m.id !== mission.id),
-            completedMissions: result.success
-              ? [...gameState.completedMissions, completedMission]
-              : gameState.completedMissions,
-            failedMissions: !result.success
-              ? [...gameState.failedMissions, completedMission]
-              : gameState.failedMissions,
-            reputation: Math.min(
-              100,
-              Math.max(
-                0,
-                gameState.reputation + (result.success ? mission.rewards.reputation : -10),
-              ),
-            ),
-            currentMissionEvents: updatedEvents.filter((e) => e.missionId !== mission.id),
+            currentMissionEvents: updatedEvents,
           };
 
+          if (result.missionComplete) {
+            const completedMission = {
+              ...mission,
+              status: result.success ? ("Completed" as const) : ("Failed" as const),
+            };
+
+            updatedOfficers = updatedOfficers.map((o) => {
+              if (mission.assignedOfficers.includes(o.id) && o.status !== "KIA") {
+                return {
+                  ...o,
+                  status: o.isInjured ? ("Injured" as const) : ("Available" as const),
+                  experience: Math.min(100, o.experience + (result.success ? 10 : 3)),
+                  morale: Math.min(100, Math.max(0, o.morale + (result.success ? 5 : -10))),
+                  missionsCompleted: o.missionsCompleted + 1,
+                };
+              }
+              return o;
+            });
+
+            nextState = {
+              ...nextState,
+              officers: updatedOfficers,
+              activeMissions: prev.activeMissions.filter((m) => m.id !== mission.id),
+              completedMissions: result.success
+                ? [...prev.completedMissions, completedMission]
+                : prev.completedMissions,
+              failedMissions: !result.success
+                ? [...prev.failedMissions, completedMission]
+                : prev.failedMissions,
+              reputation: Math.min(
+                100,
+                Math.max(0, prev.reputation + (result.success ? mission.rewards.reputation : -10)),
+              ),
+              budget: result.success ? prev.budget + mission.rewards.budget : prev.budget,
+              currentMissionEvents: updatedEvents.filter((e) => e.missionId !== mission.id),
+              lastMissionResult: {
+                mission: completedMission,
+                success: result.success,
+                outcome: result.outcome,
+                casualties: result.casualties,
+                injuries: result.injuries,
+                rewards: mission.rewards,
+              },
+            };
+          }
+          return nextState;
+        });
+
+        if (result.missionComplete) {
           addLog(
             result.success ? "Success" : "Error",
             result.success
-              ? `Mission ${mission.title} completed successfully!`
-              : `Mission ${mission.title} failed.`,
+              ? `Mission ${mission.title} completed brilliantly. Reward: $${mission.rewards.budget.toLocaleString()}`
+              : `Mission ${mission.title} failed. Heavy consequences for the department.`,
           );
         }
 
-        saveState(newState);
-
-        // Log casualties/injuries
         result.casualties.forEach((name: string) => {
-          addLog("Error", `Officer ${name} was killed in action.`);
+          addLog("Error", `Officer ${name} was KIA.`);
         });
         result.injuries.forEach((name: string) => {
           addLog("Warning", `Officer ${name} was injured.`);
@@ -359,55 +348,51 @@ export function useGameState() {
         setIsLoading(false);
       }
     },
-    [gameState, saveState, addLog],
+    [gameState.currentMissionEvents, gameState.activeMissions, gameState.officers, addLog],
   );
 
-  // Advance day
   const advanceDay = useCallback(() => {
-    const newState = {
-      ...gameState,
-      day: gameState.day + 1,
-      budget: gameState.budget + 10000, // Daily budget
-      officers: gameState.officers.map((o) => {
+    setGameState((prev) => ({
+      ...prev,
+      day: prev.day + 1,
+      budget: prev.budget + 10000,
+      officers: prev.officers.map((o) => {
         if (o.isInjured && o.injuryDays > 0) {
-          const newInjuryDays = o.injuryDays - 1;
-          if (newInjuryDays <= 0) {
-            return {
-              ...o,
-              isInjured: false,
-              injuryDays: 0,
-              status: "Available" as const,
-              health: Math.min(100, o.health + 20),
-            };
-          }
-          return { ...o, injuryDays: newInjuryDays, health: Math.min(100, o.health + 5) };
+          const newDays = o.injuryDays - 1;
+          return {
+            ...o,
+            injuryDays: newDays,
+            isInjured: newDays > 0,
+            status: newDays > 0 ? ("Injured" as const) : ("Available" as const),
+            health: Math.min(100, o.health + (newDays > 0 ? 5 : 20)),
+          };
         }
-        // Recover morale
         return { ...o, morale: Math.min(100, o.morale + 2) };
       }),
-    };
-    saveState(newState);
-    addLog("Info", `Day ${newState.day} begins. Budget replenished.`);
-  }, [gameState, saveState, addLog]);
+    }));
+    addLog("Info", "New shift rotation begins. Budget replenished.");
+  }, [addLog]);
 
-  // Decline mission
   const declineMission = useCallback(
     (missionId: string) => {
-      const mission = gameState.activeMissions.find((m) => m.id === missionId);
-      if (!mission) return;
-
-      const newState = {
-        ...gameState,
-        activeMissions: gameState.activeMissions.filter((m) => m.id !== missionId),
-        reputation: Math.max(0, gameState.reputation - 5),
-      };
-      saveState(newState);
-      addLog("Warning", `Declined mission: ${mission.title}. Reputation decreased.`);
+      setGameState((prev) => {
+        const mission = prev.activeMissions.find((m) => m.id === missionId);
+        if (!mission) return prev;
+        return {
+          ...prev,
+          activeMissions: prev.activeMissions.filter((m) => m.id !== missionId),
+          reputation: Math.max(0, prev.reputation - 5),
+        };
+      });
+      addLog("Warning", "Mission declined. Public trust decreased.");
     },
-    [gameState, saveState, addLog],
+    [addLog],
   );
 
-  // Reset game
+  const clearMissionResult = useCallback(() => {
+    setGameState((prev) => ({ ...prev, lastMissionResult: null }));
+  }, []);
+
   const resetGame = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setGameState(INITIAL_STATE);
@@ -427,6 +412,7 @@ export function useGameState() {
     advanceDay,
     declineMission,
     resetGame,
+    clearMissionResult,
     clearError: () => setError(null),
   };
 }

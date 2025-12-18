@@ -142,6 +142,20 @@ Respond with ONLY valid JSON in this exact format:
   }
 }
 
+export async function generateFuneralEulogy(officer: Officer, squadName: string): Promise<string> {
+  const prompt = `Write a solemn, 2-3 sentence graduation/memorial tribute for a fallen SWAT officer.
+Officer Name: ${officer.name}
+Rank: ${officer.rank}
+Specialization: ${officer.specialization}
+Missions Completed: ${officer.missionsCompleted}
+Squad: ${squadName}
+
+The tone should be respectful, honorable, and patriotic. Focus on their sacrifice and service to the city.`;
+
+  const response = await callLLM(prompt);
+  return response.trim();
+}
+
 export async function generateMission(
   reputation: number,
   day: number,

@@ -517,6 +517,12 @@ export function useGameState() {
     advanceDay,
     declineMission,
     upgradeGear,
+    honorFallen: (officerId: string) => {
+      setGameState((prev) => ({
+        ...prev,
+        officers: prev.officers.filter((o) => o.id !== officerId),
+      }));
+    },
     resetGame,
     clearMissionResult,
     clearError: () => setError(null),

@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Dashboard } from "./components/game/Dashboard";
+import { FuneralModal } from "./components/game/FuneralModal";
 import { MissionControlPanel } from "./components/game/MissionControlPanel";
 import { MissionReportModal } from "./components/game/MissionReportModal";
 import { SetupScreen } from "./components/game/SetupScreen";
 import { useGameState } from "./hooks/useGameState";
+import * as llmService from "./services/llmService";
+import type { Mission, Officer } from "./types/game";
 
 function App() {
   const {
@@ -20,18 +23,41 @@ function App() {
     advanceDay,
     declineMission,
     upgradeGear,
+    honorFallen,
     resetGame,
     clearMissionResult,
     clearError,
   } = useGameState();
 
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
+  const [funeralOfficer, setFuneralOfficer] = useState<Officer | null>(null);
+  const [funeralEulogy, setFuneralEulogy] = useState<string>("");
+  const [isFuneralLoading, setIsFuneralLoading] = useState(false);
 
   // Find the current mission in progress if viewing
   const currentMission = gameState.activeMissions.find((m) => m.id === activeMissionId);
   const missionEvents = gameState.currentMissionEvents.filter(
     (e) => e.missionId === activeMissionId,
   );
+
+  const handleHonorFallen = async (officerId: string) => {
+    const officer = gameState.officers.find((o) => o.id === officerId);
+    if (!officer) return;
+
+    setIsFuneralLoading(true);
+    try {
+      const eulogy = await llmService.generateFuneralEulogy(officer, "SWAT Team");
+      setFuneralOfficer(officer);
+      setFuneralEulogy(eulogy);
+    } catch (err) {
+      console.error("Failed to generate eulogy", err);
+      // Fallback
+      setFuneralOfficer(officer);
+      setFuneralEulogy(`${officer.name} served with honor and distinction. End of watch.`);
+    } finally {
+      setIsFuneralLoading(false);
+    }
+  };
 
   // 1. Setup Screen
   if (!gameState.commanderName) {
@@ -72,9 +98,35 @@ function App() {
         }}
         onAdvanceDay={advanceDay}
         onResetGame={resetGame}
-        onViewActiveMission={(mission) => setActiveMissionId(mission.id)}
+        onViewActiveMission={(mission: Mission) => setActiveMissionId(mission.id)}
         onUpgradeGear={upgradeGear}
+        onHonorFallen={handleHonorFallen}
       />
+
+      {/* Funeral Modal */}
+      {funeralOfficer && (
+        <FuneralModal
+          officer={funeralOfficer}
+          eulogy={funeralEulogy}
+          onConfirm={() => {
+            honorFallen(funeralOfficer.id);
+            setFuneralOfficer(null);
+            setFuneralEulogy("");
+          }}
+        />
+      )}
+
+      {/* Loading Overlay for Funeral */}
+      {isFuneralLoading && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] backdrop-blur-sm">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white font-bold animate-pulse uppercase tracking-widest text-xs">
+              Preparing Memorial Service...
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Mission Report Modal */}
       {gameState.lastMissionResult && (

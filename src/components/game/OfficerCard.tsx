@@ -9,6 +9,7 @@ interface Props {
   showActions?: boolean;
   compact?: boolean;
   onUpgradeGear?: (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => void;
+  onHonorFallen?: (officer: Officer) => void;
 }
 
 const specializationColors: Record<string, string> = {
@@ -44,6 +45,7 @@ export function OfficerCard({
   showActions = false,
   compact = false,
   onUpgradeGear,
+  onHonorFallen,
 }: Props) {
   const gradientClass =
     specializationColors[officer.specialization] || "from-slate-500 to-slate-600";
@@ -322,7 +324,7 @@ export function OfficerCard({
         </div>
 
         {/* Actions */}
-        {showActions && officer.status !== "KIA" && (
+        {showActions && (
           <div className="flex gap-2 pt-3 border-t border-slate-800">
             {onSelect && officer.status === "Available" && (
               <button
@@ -344,6 +346,15 @@ export function OfficerCard({
                 className="px-3 py-2 bg-red-500/20 text-red-400 hover:bg-red-500/30 rounded-lg font-medium text-sm transition-all"
               >
                 Dismiss
+              </button>
+            )}
+            {onHonorFallen && officer.status === "KIA" && (
+              <button
+                type="button"
+                onClick={() => onHonorFallen(officer)}
+                className="flex-1 px-3 py-2 bg-white text-black hover:bg-slate-200 rounded-lg font-black uppercase tracking-tighter text-xs transition-all animate-pulse"
+              >
+                Arrange Funeral
               </button>
             )}
           </div>

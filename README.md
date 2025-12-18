@@ -12,6 +12,7 @@ You don't just click buttons; you manage lives. Recruitment, tactical gear inves
 
 ### Key Features
 - **Dynamic AI Game Master**: Powered by LLM reasoning, every mission briefing and tactical event is generated on-the-fly, creating infinite replayability.
+- **Commander's Directives (Custom Actions)**: Go beyond the presets. Type your own tactical orders and watch the AI resolve them based on your squad's skills and equipment.
 - **Specialized Squad Tactics**: Recruit officers for specific roles including Assault, Sniper, Breacher, Medic, Negotiator, and Tech Specialist.
 - **Persistent Ranks & XP**: Watch your recruits grow from **Rookie** to **Lieutenant**. Higher ranks command higher salaries but bring veteran experience to the field.
 - **Tactical Gear Upgrades**: Invest budget into Armor, Specialized Weapons, and Utility/Tech levels (1-3). Gear levels directly impact mission survival and success rates.

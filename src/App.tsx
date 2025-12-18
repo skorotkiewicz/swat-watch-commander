@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Dashboard } from "./components/game/Dashboard";
+import { DismissalModal } from "./components/game/DismissalModal";
 import { FuneralModal } from "./components/game/FuneralModal";
 import { MissionControlPanel } from "./components/game/MissionControlPanel";
 import { MissionReportModal } from "./components/game/MissionReportModal";
@@ -34,6 +35,10 @@ function App() {
   const [funeralEulogy, setFuneralEulogy] = useState<string>("");
   const [isFuneralLoading, setIsFuneralLoading] = useState(false);
 
+  const [dismissalOfficer, setDismissalOfficer] = useState<Officer | null>(null);
+  const [dismissalDialogue, setDismissalDialogue] = useState<string>("");
+  const [isDismissalLoading, setIsDismissalLoading] = useState(false);
+
   // Find the current mission in progress if viewing
   const currentMission = gameState.activeMissions.find((m) => m.id === activeMissionId);
   const missionEvents = gameState.currentMissionEvents.filter(
@@ -56,6 +61,24 @@ function App() {
       setFuneralEulogy(`${officer.name} served with honor and distinction. End of watch.`);
     } finally {
       setIsFuneralLoading(false);
+    }
+  };
+
+  const handleDismissOfficer = async (officerId: string, reason: string) => {
+    const officer = gameState.officers.find((o) => o.id === officerId);
+    if (!officer) return;
+
+    setIsDismissalLoading(true);
+    try {
+      const dialogue = await dismissOfficer(officerId, reason);
+      if (dialogue) {
+        setDismissalOfficer(officer);
+        setDismissalDialogue(dialogue);
+      }
+    } catch (err) {
+      console.error("Failed to dismiss officer", err);
+    } finally {
+      setIsDismissalLoading(false);
     }
   };
 
@@ -91,7 +114,7 @@ function App() {
         gameState={gameState}
         isLoading={isLoading}
         onRecruitOfficer={recruitOfficer}
-        onDismissOfficer={dismissOfficer}
+        onDismissOfficer={handleDismissOfficer}
         onGenerateMission={generateMission}
         onDeclineMission={declineMission}
         onAcceptMission={(missionId, officerIds) => {
@@ -118,13 +141,25 @@ function App() {
         />
       )}
 
-      {/* Loading Overlay for Funeral */}
-      {isFuneralLoading && (
+      {/* Dismissal Modal */}
+      {dismissalOfficer && (
+        <DismissalModal
+          officer={dismissalOfficer}
+          dialogue={dismissalDialogue}
+          onConfirm={() => {
+            setDismissalOfficer(null);
+            setDismissalDialogue("");
+          }}
+        />
+      )}
+
+      {/* Loading Overlay for Actions */}
+      {(isFuneralLoading || isDismissalLoading) && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[200] backdrop-blur-sm">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mx-auto mb-4" />
             <p className="text-white font-bold animate-pulse uppercase tracking-widest text-xs">
-              Preparing Memorial Service...
+              {isFuneralLoading ? "Preparing Memorial Service..." : "Processing Termination..."}
             </p>
           </div>
         </div>

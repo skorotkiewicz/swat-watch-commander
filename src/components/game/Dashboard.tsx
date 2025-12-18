@@ -314,7 +314,12 @@ export function Dashboard({
                       key={o.id}
                       officer={o}
                       showActions
-                      onDismiss={() => onDismissOfficer(o.id, "Performance issues")}
+                      onDismiss={() => {
+                        const reason = prompt(
+                          "Enter reason for dismissal (e.g., Performance issues, Budget cuts, Misconduct):",
+                        );
+                        if (reason) onDismissOfficer(o.id, reason);
+                      }}
                       onUpgradeGear={onUpgradeGear}
                       onHonorFallen={() => onHonorFallen(o.id)}
                     />

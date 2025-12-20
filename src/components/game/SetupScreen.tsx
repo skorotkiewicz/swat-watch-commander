@@ -3,9 +3,10 @@ import { useState } from "react";
 
 interface Props {
   onStart: (commanderName: string, squadName: string) => void;
+  onImport: (json: string) => void;
 }
 
-export function SetupScreen({ onStart }: Props) {
+export function SetupScreen({ onStart, onImport }: Props) {
   const [commanderName, setCommanderName] = useState("");
   const [squadName, setSquadName] = useState("");
 
@@ -13,6 +14,18 @@ export function SetupScreen({ onStart }: Props) {
     e.preventDefault();
     if (commanderName.trim() && squadName.trim()) {
       onStart(commanderName.trim(), squadName.trim());
+    }
+  };
+
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        if (content) onImport(content);
+      };
+      reader.readAsText(file);
     }
   };
 
@@ -49,6 +62,7 @@ export function SetupScreen({ onStart }: Props) {
               stroke="currentColor"
               aria-hidden="true"
             >
+              <title>SWAT Logo</title>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -66,11 +80,8 @@ export function SetupScreen({ onStart }: Props) {
         </div>
 
         {/* Setup Form */}
-        <form
-          onSubmit={handleSubmit}
-          className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-cyan-500/20 p-8 shadow-2xl shadow-black/50"
-        >
-          <div className="space-y-6">
+        <div className="bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-cyan-500/20 p-8 shadow-2xl shadow-black/50">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label
                 htmlFor="commanderName"
@@ -105,20 +116,50 @@ export function SetupScreen({ onStart }: Props) {
                 placeholder="e.g., Alpha Team, Unit 7"
               />
             </div>
+
+            <button
+              type="submit"
+              disabled={!commanderName.trim() || !squadName.trim()}
+              className="w-full px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:from-slate-600 disabled:to-slate-700 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-all duration-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/40 disabled:shadow-none transform hover:scale-[1.02] disabled:transform-none"
+            >
+              BEGIN COMMAND
+            </button>
+          </form>
+
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-800" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-[#0f172a] px-4 text-slate-500 font-bold tracking-[0.2em]">
+                Or Restore Log
+              </span>
+            </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={!commanderName.trim() || !squadName.trim()}
-            className="w-full mt-8 px-6 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:from-slate-600 disabled:to-slate-700 disabled:cursor-not-allowed text-white font-bold text-lg rounded-xl transition-all duration-300 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/40 disabled:shadow-none transform hover:scale-[1.02] disabled:transform-none"
-          >
-            BEGIN COMMAND
-          </button>
-        </form>
+          <label className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/30 rounded-xl text-slate-400 hover:text-cyan-400 font-bold text-sm transition-all cursor-pointer group">
+            <svg
+              className="w-5 h-5 group-hover:scale-110 transition-transform"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <title>Restore Log</title>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12"
+              />
+            </svg>
+            IMPORT EXTERNAL DATA
+            <input type="file" className="hidden" accept=".json" onChange={handleImport} />
+          </label>
+        </div>
 
         {/* Footer */}
-        <p className="text-center text-slate-600 text-sm mt-8">
-          Powered by Local LLM • All decisions are AI-generated
+        <p className="text-center text-slate-600 text-sm mt-8 uppercase tracking-widest font-black opacity-40">
+          Unit 7 Protocol • Tactical Decision AI Active
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AdvanceDayOverlay } from "./components/game/AdvanceDayOverlay";
 import { Dashboard } from "./components/game/Dashboard";
 import { DismissalModal } from "./components/game/DismissalModal";
 import { FuneralModal } from "./components/game/FuneralModal";
@@ -29,6 +30,11 @@ function App() {
     resetGame,
     clearMissionResult,
     clearError,
+    isAdvancingDay,
+    scheduleEvent,
+    cancelEvent,
+    exportSave,
+    importSave,
   } = useGameState();
 
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
@@ -85,7 +91,7 @@ function App() {
 
   // 1. Setup Screen
   if (!gameState.commanderName) {
-    return <SetupScreen onStart={startNewGame} />;
+    return <SetupScreen onStart={startNewGame} onImport={importSave} />;
   }
 
   // 2. Mission Control Panel
@@ -128,7 +134,14 @@ function App() {
         onUpgradeGear={upgradeGear}
         onHonorFallen={handleHonorFallen}
         onRehireLastOfficer={rehireLastOfficer}
+        onScheduleEvent={scheduleEvent}
+        onCancelEvent={cancelEvent}
+        onExportSave={exportSave}
+        onImportSave={importSave}
       />
+
+      {/* Advance Day Transition */}
+      {isAdvancingDay && <AdvanceDayOverlay day={gameState.day} squadName={gameState.squadName} />}
 
       {/* Funeral Modal */}
       {funeralOfficer && (

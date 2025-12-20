@@ -24,7 +24,7 @@ export interface Officer {
   missionsCompleted: number;
   isInjured: boolean;
   injuryDays: number;
-  status: "Available" | "On Mission" | "Injured" | "On Leave" | "KIA";
+  status: "Available" | "On Mission" | "On Event" | "Injured" | "On Leave" | "KIA";
   salary: number;
   backstory?: string;
   gear: Gear;
@@ -92,6 +92,23 @@ export interface MissionResult {
   };
 }
 
+export interface CommunityEvent {
+  id: string;
+  title: string;
+  description: string;
+  type: "Charity" | "Public Relations" | "Training Demo" | "Recruitment Drive";
+  requirements: {
+    minOfficers: number;
+    requiredSpecialization?: string;
+  };
+  rewards: {
+    budget: number;
+    reputation: number;
+  };
+  assignedOfficers: string[];
+  status: "Available" | "Scheduled" | "Completed";
+}
+
 export interface GameState {
   commanderName: string;
   squadName: string;
@@ -108,6 +125,7 @@ export interface GameState {
   missionsAttemptedToday: number;
   maxMissionsPerDay: number;
   lastDismissedOfficer?: Officer | null;
+  availableEvents: CommunityEvent[];
 }
 
 export interface LogEntry {

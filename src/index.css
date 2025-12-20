@@ -169,5 +169,13 @@
   10% { opacity: 0.9; }
   15% { opacity: 0.99; }
   20% { opacity: 0.95; }
-  /* ... more frames if needed, but simple is often better for performance */
+}
+
+@keyframes scan {
+  from { top: -10%; }
+  to { top: 110%; }
+}
+
+.animate-scan {
+  animation: scan 4s linear infinite;
 }

@@ -24,6 +24,7 @@ const specializationColors: Record<string, string> = {
 const statusColors: Record<string, string> = {
   Available: "bg-emerald-500",
   "On Mission": "bg-amber-500",
+  "On Event": "bg-emerald-400",
   Injured: "bg-red-500",
   "On Leave": "bg-slate-500",
   KIA: "bg-black",
@@ -120,11 +121,13 @@ export function OfficerCard({
                 ? "bg-emerald-500/30 text-emerald-300"
                 : officer.status === "On Mission"
                   ? "bg-amber-500/30 text-amber-300"
-                  : officer.status === "Injured"
-                    ? "bg-red-500/30 text-red-300"
-                    : officer.status === "KIA"
-                      ? "bg-black/50 text-white"
-                      : "bg-slate-500/30 text-slate-300"
+                  : officer.status === "On Event"
+                    ? "bg-emerald-400/30 text-emerald-200"
+                    : officer.status === "Injured"
+                      ? "bg-red-500/30 text-red-300"
+                      : officer.status === "KIA"
+                        ? "bg-black/50 text-white"
+                        : "bg-slate-500/30 text-slate-300"
             }`}
           >
             <span className={`w-1.5 h-1.5 rounded-full ${statusColors[officer.status]}`} />

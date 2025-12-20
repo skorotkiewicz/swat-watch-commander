@@ -1,6 +1,7 @@
 // Main Game Dashboard - HQ View
 import { useState } from "react";
 import type { GameState, Mission } from "../../types/game";
+import { CommunityEvents } from "./CommunityEvents";
 import { MissionCard } from "./MissionCard";
 import { OfficerCard } from "./OfficerCard";
 
@@ -18,6 +19,10 @@ interface Props {
   onUpgradeGear: (officerId: string, type: "armorLevel" | "weaponLevel" | "utilityLevel") => void;
   onHonorFallen: (officerId: string) => void;
   onRehireLastOfficer?: () => void;
+  onScheduleEvent: (eventId: string, officerIds: string[]) => void;
+  onCancelEvent: (eventId: string) => void;
+  onExportSave: () => void;
+  onImportSave: (json: string) => void;
 }
 
 export function Dashboard({
@@ -34,8 +39,12 @@ export function Dashboard({
   onUpgradeGear,
   onHonorFallen,
   onRehireLastOfficer,
+  onScheduleEvent,
+  onCancelEvent,
+  onExportSave,
+  onImportSave,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs">("missions");
+  const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs" | "events">("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
   const [recruitSpec, setRecruitSpec] = useState<string | undefined>(undefined);
@@ -123,30 +132,9 @@ export function Dashboard({
             <button
               type="button"
               onClick={onAdvanceDay}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm font-bold transition-all"
+              className="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-700 hover:from-cyan-500 hover:to-blue-600 text-white rounded-xl text-sm font-black uppercase tracking-widest transition-all shadow-lg shadow-cyan-500/20 active:scale-95 border border-white/10"
             >
-              Advance Day
-            </button>
-            <button
-              type="button"
-              onClick={onResetGame}
-              className="p-2 text-slate-500 hover:text-red-400 transition-colors"
-              title="Reset Game"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
+              Advance Shift
             </button>
           </div>
         </div>
@@ -175,6 +163,13 @@ export function Dashboard({
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "logs" ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
           >
             <span>📜</span> Radio Log
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("events")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "events" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>🤝</span> Community
           </button>
 
           {gameState.lastDismissedOfficer && onRehireLastOfficer && (
@@ -216,6 +211,12 @@ export function Dashboard({
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400">On Event</span>
+                  <span className="text-emerald-400 font-bold">
+                    {gameState.officers.filter((o) => o.status === "On Event").length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-400">KIA</span>
                   <span className="text-red-500 font-bold">
                     {gameState.officers.filter((o) => o.status === "KIA").length}
@@ -236,6 +237,82 @@ export function Dashboard({
                   <span className="text-emerald-400 font-bold">+$10,000</span>
                 </div>
               </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800/50 flex items-center justify-between px-2">
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={onExportSave}
+                  className="p-2 text-slate-600 hover:text-cyan-400 hover:bg-cyan-400/5 rounded-lg transition-all"
+                  title="Export Strategy Log"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <title>Export</title>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    />
+                  </svg>
+                </button>
+                <label
+                  className="p-2 text-slate-600 hover:text-cyan-400 hover:bg-cyan-400/5 rounded-lg transition-all cursor-pointer"
+                  title="Import Strategy Log"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <title>Import</title>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12"
+                    />
+                  </svg>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const content = event.target?.result as string;
+                          if (content) onImportSave(content);
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "CRITICAL WARNING: This will permanently PURGE all tactical data. Proceed?",
+                    )
+                  ) {
+                    onResetGame();
+                  }
+                }}
+                className="p-2 text-slate-700 hover:text-red-500 hover:bg-red-500/5 rounded-lg transition-all"
+                title="Emergency Purge HQ"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <title>Purge</title>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
             </div>
           </div>
         </nav>
@@ -374,6 +451,16 @@ export function Dashboard({
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === "events" && (
+            <CommunityEvents
+              events={gameState.availableEvents}
+              officers={gameState.officers}
+              onScheduleEvent={onScheduleEvent}
+              onCancelEvent={onCancelEvent}
+              isLoading={isLoading}
+            />
           )}
         </div>
       </main>

@@ -18,6 +18,7 @@ const INITIAL_STATE: GameState = {
   lastMissionResult: null,
   missionsAttemptedToday: 0,
   maxMissionsPerDay: 5,
+  availableEvents: [],
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -58,6 +59,7 @@ export function useGameState() {
         // Migration for existing saves
         if (parsed.missionsAttemptedToday === undefined) parsed.missionsAttemptedToday = 0;
         if (parsed.maxMissionsPerDay === undefined) parsed.maxMissionsPerDay = 5;
+        if (parsed.availableEvents === undefined) parsed.availableEvents = [];
         if (parsed.officers) {
           parsed.officers = parsed.officers.map((o: any) => ({
             ...o,
@@ -75,6 +77,7 @@ export function useGameState() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdvancingDay, setIsAdvancingDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Persist state to localStorage on every change
@@ -97,21 +100,36 @@ export function useGameState() {
     }));
   }, []);
 
-  const startNewGame = useCallback((commanderName: string, squadName: string) => {
-    const newState: GameState = {
-      ...INITIAL_STATE,
-      commanderName,
-      squadName,
-      gameLog: [
-        {
-          id: crypto.randomUUID(),
-          timestamp: new Date(),
-          type: "Info",
-          message: `Commander ${commanderName} has taken command of ${squadName}.`,
-        },
-      ],
-    };
-    setGameState(newState);
+  const startNewGame = useCallback(async (commanderName: string, squadName: string) => {
+    setIsLoading(true);
+    try {
+      const initialEvent = await llmService.generateCommunityEvent(50);
+      const newState: GameState = {
+        ...INITIAL_STATE,
+        commanderName,
+        squadName,
+        availableEvents: [initialEvent],
+        gameLog: [
+          {
+            id: crypto.randomUUID(),
+            timestamp: new Date(),
+            type: "Info",
+            message: `Commander ${commanderName} has taken command of ${squadName}.`,
+          },
+        ],
+      };
+      setGameState(newState);
+    } catch (_error) {
+      console.error("Failed to generate initial event", _error);
+      const newState: GameState = {
+        ...INITIAL_STATE,
+        commanderName,
+        squadName,
+      };
+      setGameState(newState);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   const recruitOfficer = useCallback(
@@ -416,39 +434,129 @@ export function useGameState() {
     [gameState.currentMissionEvents, gameState.activeMissions, gameState.officers, addLog],
   );
 
-  const advanceDay = useCallback(() => {
+  const advanceDay = useCallback(async () => {
+    setIsAdvancingDay(true);
+
+    // Give some time for animation
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     setGameState((prev) => {
+      const scheduledEvents = prev.availableEvents.filter((e) => e.status === "Scheduled");
+
+      let eventBudgetReward = 0;
+      let eventReputationReward = 0;
+
+      scheduledEvents.forEach((event) => {
+        eventBudgetReward += event.rewards.budget;
+        eventReputationReward += event.rewards.reputation;
+      });
+
       const totalSalaries = prev.officers
         .filter((o) => o.status !== "KIA")
         .reduce((acc, o) => acc + o.salary, 0);
 
       const cityFunding = 10000;
-      const netBudgetChange = cityFunding - totalSalaries;
+      const netBudgetChange = cityFunding + eventBudgetReward - totalSalaries;
+
+      const updatedOfficers = prev.officers.map((o) => {
+        // Reset status for officers who were on mission or event
+        let status = o.status;
+        if (status === "On Mission" || status === "On Event") {
+          status = "Available" as const;
+        }
+
+        if (o.isInjured && o.injuryDays > 0) {
+          const newDays = o.injuryDays - 1;
+          return {
+            ...o,
+            injuryDays: newDays,
+            isInjured: newDays > 0,
+            status: newDays > 0 ? ("Injured" as const) : ("Available" as const),
+            health: Math.min(100, o.health + (newDays > 0 ? 5 : 20)),
+          };
+        }
+        return { ...o, status, morale: Math.min(100, o.morale + 2) };
+      });
 
       return {
         ...prev,
         day: prev.day + 1,
         budget: prev.budget + netBudgetChange,
+        reputation: Math.min(100, prev.reputation + eventReputationReward),
         missionsAttemptedToday: 0,
-        // Clear unaccepted sessions, keep active ones
         activeMissions: prev.activeMissions.filter((m) => m.status === "In Progress"),
-        officers: prev.officers.map((o) => {
-          if (o.isInjured && o.injuryDays > 0) {
-            const newDays = o.injuryDays - 1;
-            return {
-              ...o,
-              injuryDays: newDays,
-              isInjured: newDays > 0,
-              status: newDays > 0 ? ("Injured" as const) : ("Available" as const),
-              health: Math.min(100, o.health + (newDays > 0 ? 5 : 20)),
-            };
-          }
-          return { ...o, morale: Math.min(100, o.morale + 2) };
-        }),
+        availableEvents: [], // Clear old events
+        officers: updatedOfficers,
       };
     });
+
+    // Generate new missions and events for the new day
+    try {
+      const newEvent = await llmService.generateCommunityEvent(gameState.reputation);
+      setGameState((prev) => ({
+        ...prev,
+        availableEvents: [newEvent],
+      }));
+    } catch (_error) {
+      console.error("Failed to generate new day event", _error);
+    }
+
     addLog("Info", "New shift rotation begins. Payroll processed. Dispatch radio refreshed.");
-  }, [addLog]);
+    setIsAdvancingDay(false);
+  }, [gameState.reputation, addLog]);
+
+  const generateCommunityEvent = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const event = await llmService.generateCommunityEvent(gameState.reputation);
+      setGameState((prev) => ({
+        ...prev,
+        availableEvents: [...prev.availableEvents, event],
+      }));
+    } catch (_error) {
+      setError("Failed to generate community event");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gameState.reputation]);
+
+  const scheduleEvent = useCallback(
+    (eventId: string, officerIds: string[]) => {
+      setGameState((prev) => ({
+        ...prev,
+        availableEvents: prev.availableEvents.map((e) =>
+          e.id === eventId
+            ? { ...e, status: "Scheduled" as const, assignedOfficers: officerIds }
+            : e,
+        ),
+        officers: prev.officers.map((o) =>
+          officerIds.includes(o.id) ? { ...o, status: "On Event" as const } : o,
+        ),
+      }));
+      addLog("Info", "Officers assigned to community event.");
+    },
+    [addLog],
+  );
+
+  const cancelEvent = useCallback(
+    (eventId: string) => {
+      setGameState((prev) => {
+        const event = prev.availableEvents.find((e) => e.id === eventId);
+        if (!event) return prev;
+        return {
+          ...prev,
+          availableEvents: prev.availableEvents.map((e) =>
+            e.id === eventId ? { ...e, status: "Available" as const, assignedOfficers: [] } : e,
+          ),
+          officers: prev.officers.map((o) =>
+            event.assignedOfficers.includes(o.id) ? { ...o, status: "Available" as const } : o,
+          ),
+        };
+      });
+      addLog("Info", "Community event cancelled.");
+    },
+    [addLog],
+  );
 
   const declineMission = useCallback(
     (missionId: string) => {
@@ -509,6 +617,68 @@ export function useGameState() {
     [],
   );
 
+  const exportSave = useCallback(() => {
+    const data = JSON.stringify(gameState, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `swat-save-day-${gameState.day}-${gameState.squadName.replace(/\s+/g, "-").toLowerCase()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    addLog("Success", "Tactical data exported to external storage.");
+  }, [gameState, addLog]);
+
+  const importSave = useCallback(
+    (jsonString: string) => {
+      try {
+        const parsed = JSON.parse(jsonString);
+        // Basic validation - check for required top-level keys
+        if (!parsed.commanderName || !parsed.squadName || !Array.isArray(parsed.officers)) {
+          throw new Error("Invalid save file format.");
+        }
+
+        // Convert date strings back to Date objects
+        const hydrated = {
+          ...parsed,
+          activeMissions:
+            parsed.activeMissions?.map((m: any) => ({
+              ...m,
+              createdAt: new Date(m.createdAt),
+            })) || [],
+          completedMissions:
+            parsed.completedMissions?.map((m: any) => ({
+              ...m,
+              createdAt: new Date(m.createdAt),
+            })) || [],
+          failedMissions:
+            parsed.failedMissions?.map((m: any) => ({
+              ...m,
+              createdAt: new Date(m.createdAt),
+            })) || [],
+          currentMissionEvents:
+            parsed.currentMissionEvents?.map((e: any) => ({
+              ...e,
+              timestamp: new Date(e.timestamp),
+            })) || [],
+          gameLog:
+            parsed.gameLog?.map((l: any) => ({
+              ...l,
+              timestamp: new Date(l.timestamp),
+            })) || [],
+        };
+
+        setGameState(hydrated);
+        addLog("Success", "External tactical data synchronized. Squad status updated.");
+      } catch (_e) {
+        setError("Failed to import save file. The file may be corrupted or invalid.");
+      }
+    },
+    [addLog],
+  );
+
   const resetGame = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setGameState(INITIAL_STATE);
@@ -538,5 +708,11 @@ export function useGameState() {
     resetGame,
     clearMissionResult,
     clearError: () => setError(null),
+    isAdvancingDay,
+    scheduleEvent,
+    cancelEvent,
+    generateCommunityEvent,
+    exportSave,
+    importSave,
   };
 }

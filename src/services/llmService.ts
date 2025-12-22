@@ -19,9 +19,20 @@ interface LLMMessage {
   content: string;
 }
 
-const SYSTEM_PROMPT = `You are a specialized AI game engine for "S.W.A.T. Watch Commander", a grit-focused tactical management sim.
-Your job is to generate realistic, consequences-driven scenarios, dialogue, and outcomes for a SWAT team.
-The tone is serious, professional, and gritty. Decisions should have weight.
+const SYSTEM_PROMPT = `You are a specialized AI game engine for "S.W.A.T. Watch Commander", a REALISTIC tactical police management simulation.
+
+REALISM GUIDELINES:
+- Base all scenarios on real SWAT operations, not Hollywood movies
+- SWAT missions are methodical, not action-packed gun battles
+- Most callouts end without shots fired - negotiation and de-escalation are primary tools
+- Officers follow strict Rules of Engagement (ROE) and Use of Force continuum
+- Every use of force has legal, administrative, and psychological consequences
+- Officers experience stress, PTSD, burnout, and require mandatory counseling after critical incidents
+- Media scrutiny, Internal Affairs investigations, and civil lawsuits are realistic threats
+- Budget constraints, union issues, and city politics affect operations
+- Training, certification, and equipment maintenance are ongoing requirements
+
+TONE: Professional, procedural, consequence-driven. Decisions have weight.
 When asked to provide JSON, provide ONLY the JSON block without any preamble OR markdown code blocks.`;
 
 function extractJSON(response: string): unknown {
@@ -115,18 +126,41 @@ export async function generateOfficer(
   existingNames?: string[],
   specialization?: string,
 ): Promise<Officer> {
-  const prompt = `Generate a new SWAT officer profile.
-  ${specialization ? `Specialization requested: ${specialization}` : ""}
-  ${existingNames ? `Avoid these names: ${existingNames.join(", ")}` : ""}
-  Respond with ONLY valid JSON:
-  {
-    "name": "Full Name",
-    "rank": "Rookie" or "Officer",
-    "specialization": "Point Man", "Breacher", "Medic", "Sniper", or "Shield",
-    "background": "Brief 1-sentence background",
-    "skills": { "marksmanship": 30-70, "tactics": 30-70, "composure": 30-70 },
-    "morale": 80-100
-  }`;
+  const prompt = `Generate a REALISTIC SWAT officer profile.
+
+${specialization ? `Requested specialization: ${specialization}` : "Random specialization"}
+${existingNames?.length ? `Avoid these names (already on team): ${existingNames.join(", ")}` : ""}
+
+REALISM REQUIREMENTS:
+- Officers have realistic career paths (patrol → detective → SWAT selection)
+- SWAT selection is competitive - only top performers make it
+- Include relevant certifications and training history
+- Background should include years on force, prior units, notable cases
+- Skills should reflect realistic police competencies
+
+SPECIALIZATIONS (authentic SWAT roles):
+- "Assault" - Entry team, close quarters combat, room clearing
+- "Sniper" - Long-range precision, overwatch, reconnaissance
+- "Breacher" - Explosive/mechanical entry, door work, structural assessment
+- "Medic" - Tactical emergency medical care (TEMS), evacuation
+- "Negotiator" - Crisis negotiation, psychology, de-escalation
+- "Tech Specialist" - Electronics, communications, surveillance, robots
+
+Respond with ONLY valid JSON:
+{
+  "name": "Full realistic name",
+  "rank": "Rookie" (new to SWAT, 2-4 years patrol) or "Officer" (experienced, 5+ years),
+  "specialization": "Assault/Sniper/Breacher/Medic/Negotiator/Tech Specialist",
+  "backstory": "2-3 sentences: years on force, prior assignment, what brought them to SWAT, any notable incidents",
+  "skills": { 
+    "marksmanship": 40-80 (base competency + specialization),
+    "tactics": 40-80 (procedural knowledge),
+    "fitness": 50-90 (physical condition),
+    "leadership": 30-70 (command potential),
+    "composure": 40-80 (stress management)
+  },
+  "morale": 75-95
+}`;
 
   const response = await callLLM(prompt);
   const data = extractJSON(response) as any;
@@ -136,12 +170,12 @@ export async function generateOfficer(
     id: crypto.randomUUID(),
     health: 100,
     status: "Available",
-    experience: 0,
+    experience: data.rank === "Officer" ? 25 : 0,
     missionsCompleted: 0,
     injuryDays: 0,
+    isInjured: false,
     salary: calculateSalary(data.rank),
     gear: { armorLevel: 1, weaponLevel: 1, utilityLevel: 1 },
-    // 🎮 NEW FUN FEATURES
     medals: [],
     killCount: 0,
     livesaved: 0,
@@ -170,21 +204,41 @@ export async function generateMission(
   day: number,
   squadSize: number,
 ): Promise<Mission> {
-  const prompt = `Generate a SWAT mission briefing. Squad Size: ${squadSize}, Reputation: ${reputation}, Day: ${day}.
-  Respond with ONLY valid JSON:
-  {
-    "title": "Mission Name",
-    "description": "2-3 sentence overview",
-    "type": "Hostage Rescue", "Active Shooter", "High-Risk Warrant", "Barricaded Suspect", or "Bomb Threat",
-    "priority": "Low", "Medium", "High", or "Critical",
-    "location": "A specific city location",
-    "estimatedDuration": "Duration",
-    "requiredOfficers": 2-8,
-    "requiredSpecializations": ["Point Man", "Breacher", etc],
-    "riskLevel": 1-10,
-    "rewards": { "experience": 50-200, "reputation": 5-20, "budget": 5000-25000 },
-    "briefing": "Detailed technical briefing"
-  }`;
+  const prompt = `Generate a REALISTIC SWAT callout briefing.
+
+Context: Squad Size: ${squadSize}, Department Reputation: ${reputation}/100, Day: ${day}
+
+REALISM REQUIREMENTS:
+- Use authentic SWAT terminology and procedures
+- Include real legal considerations (warrants, probable cause, exigent circumstances)
+- Mention intelligence source quality (CI tip, surveillance, wiretap, patrol observation)
+- Include realistic suspect information (criminal history, known associates, weapons)
+- Reference proper tactical considerations (entry points, fields of fire, civilian presence)
+- NOT every mission involves violence - many are surveillance, warrant service, or standoffs resolved peacefully
+
+MISSION TYPES (pick one appropriate to situation):
+- "High-Risk Warrant" - Most common. Serving arrest/search warrants on dangerous individuals.
+- "Barricaded Suspect" - Contained situation, often resolved through negotiation.
+- "Hostage Rescue" - Rare. Only when lives are in immediate danger.
+- "Active Shooter" - Immediate action required. Time-critical.
+- "VIP Protection" - Dignitary or witness protection details.
+- "Drug Raid" - Narcotics search warrants, often with DEA/ATF coordination.
+- "Bomb Threat" - EOD coordination, evacuation, search protocols.
+
+Respond with ONLY valid JSON:
+{
+  "title": "Brief operational name",
+  "description": "2-3 sentence situation overview with intelligence source",
+  "type": "High-Risk Warrant" (or other type),
+  "priority": "Low/Medium/High/Critical",
+  "location": "Specific realistic location (apartment complex, suburban home, warehouse, etc.)",
+  "estimatedDuration": "Realistic duration (most operations: 2-6 hours)",
+  "requiredOfficers": 4-8 (realistic team size),
+  "requiredSpecializations": ["Negotiator", "Sniper", "Breacher", "Medic", etc.],
+  "riskLevel": 1-10 (most warrant services are 3-5, active shooters are 8-10),
+  "rewards": { "experience": 50-150, "reputation": 2-10, "budget": 2000-15000 },
+  "briefing": "Detailed tactical briefing including: suspect description, criminal history, known weapons, building layout, civilian considerations, ROE guidance, and contingencies"
+}`;
 
   const response = await callLLM(prompt, 0.7);
   const data = extractJSON(response) as any;
@@ -209,13 +263,40 @@ export async function generateMissionEvent(
   officers?: Officer[],
   previousEvents?: MissionEvent[],
 ): Promise<MissionEvent> {
-  const prompt = `Tactical event for: ${mission.title}. Unit: ${officers?.map((o) => o.name).join(", ")}. History: ${previousEvents?.map((e) => e.description).join(" -> ")}.
-  Respond with ONLY valid JSON:
-  {
-    "description": "Situation description",
-    "type": "Decision", "Combat", or "Info",
-    "options": [ { "id": "uuid", "label": "Label", "description": "Desc", "riskLevel": 1-10, "requiredSpecialization": "Spec" } ]
-  }`;
+  const officerInfo = officers
+    ?.map((o) => `${o.name} (${o.specialization}, ${o.morale}% morale)`)
+    .join(", ");
+  const historyText = previousEvents?.map((e) => e.description).join(" → ") || "Initial approach";
+
+  const prompt = `Generate a REALISTIC tactical situation for SWAT operation: "${mission.title}"
+
+Current team: ${officerInfo}
+Mission history: ${historyText}
+Mission type: ${mission.type}
+
+REALISM REQUIREMENTS:
+- Present authentic tactical dilemmas police face
+- Include options for de-escalation, negotiation, and less-lethal force
+- Consider civilian safety, legal liability, and use of force justification
+- Reference real SWAT concepts: stack formation, fatal funnel, stronghold, crisis negotiation
+- Most situations should have a "wait and gather intel" or "negotiate" option
+- Violence is a LAST RESORT, not the default solution
+
+EVENT TYPES:
+- "Decision" - Commander must choose a course of action
+- "Info" - Intelligence update, no action required
+- "Negotiation" - Communication with suspect(s)
+- "Complication" - Unexpected development (media arrival, additional suspects, hostage situation change)
+
+Respond with ONLY valid JSON:
+{
+  "description": "Detailed situation description with tactical observations",
+  "type": "Decision" or "Info" or "Negotiation" or "Complication",
+  "options": [
+    { "id": "option1", "label": "Clear action label", "description": "What this entails and potential consequences", "riskLevel": 1-10, "requiredSpecialization": "Negotiator/Breacher/etc or null" },
+    { "id": "option2", "label": "Alternative option", "description": "Description", "riskLevel": 1-10 }
+  ]
+}`;
 
   const response = await callLLM(prompt, 0.8);
   const data = extractJSON(response) as any;
@@ -243,15 +324,46 @@ export async function resolveDecision(
   missionComplete: boolean;
   success: boolean;
 }> {
-  const prompt = `Resolve: ${chosenOption.label} in ${mission.title}. Team: ${officers.map((o) => `${o.name} (${o.morale}% morale)`).join(", ")}. Situation: ${event.description}.
-  Respond with ONLY valid JSON:
-  {
-    "outcome": "2-3 sentences",
-    "casualties": [],
-    "injuries": [],
-    "missionComplete": true/false,
-    "success": true/false
-  }`;
+  const teamInfo = officers
+    .map(
+      (o) =>
+        `${o.name} (${o.specialization}, ${o.experience}% exp, ${o.morale}% morale, gear level ${o.gear.armorLevel}/${o.gear.weaponLevel}/${o.gear.utilityLevel})`,
+    )
+    .join(", ");
+
+  const prompt = `Resolve tactical decision with REALISTIC outcomes.
+
+Mission: ${mission.title} (${mission.type})
+Situation: ${event.description}
+Decision: ${chosenOption.label} - ${chosenOption.description}
+Risk Level: ${chosenOption.riskLevel}/10
+Team: ${teamInfo}
+
+REALISM REQUIREMENTS:
+- Casualties are RARE in SWAT operations - most end without shots fired
+- Injuries happen but are not guaranteed even in high-risk situations
+- Training, experience, and proper tactics significantly reduce risk
+- Consider: armor effectiveness, tactical advantage, element of surprise
+- Poor morale leads to hesitation and mistakes, not automatic failure
+- Successful negotiation should be a common positive outcome
+- Even "failed" missions often have partial success (suspect contained, hostages safe, etc.)
+
+CONSEQUENCE TYPES TO CONSIDER:
+- Suspect surrenders peacefully (most common)
+- Suspect flees (requires pursuit decision)
+- Suspect barricades (standoff continues)
+- Shots fired (rare, requires justification)
+- Civilian injured (lawsuit risk, IA investigation)
+- Officer involved shooting (mandatory admin leave, psych eval)
+
+Respond with ONLY valid JSON:
+{
+  "outcome": "3-4 sentences describing what happened, including tactical details and aftermath. If shots were fired, describe circumstances justifying use of force.",
+  "casualties": [] (officer NAMES who died - should be empty in 95% of cases),
+  "injuries": [] (officer NAMES who were injured - should be empty in 80% of cases),
+  "missionComplete": true/false (is the operation concluded?),
+  "success": true/false (did we achieve objectives without major incident?)
+}`;
 
   const response = await callLLM(prompt);
   return extractJSON(response) as any;

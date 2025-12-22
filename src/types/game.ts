@@ -9,6 +9,7 @@ export interface Gear {
 export interface Officer {
   id: string;
   name: string;
+  nickname?: string; // Earned through heroic acts
   rank: "Rookie" | "Officer" | "Senior Officer" | "Sergeant" | "Lieutenant";
   specialization: "Assault" | "Sniper" | "Breacher" | "Medic" | "Negotiator" | "Tech Specialist";
   experience: number; // 0-100
@@ -28,6 +29,9 @@ export interface Officer {
   salary: number;
   backstory?: string;
   gear: Gear;
+  medals: string[]; // Array of medal IDs
+  killCount: number;
+  livesaved: number;
 }
 
 export interface Mission {
@@ -161,6 +165,73 @@ export interface InterrogationMessage {
   text: string;
 }
 
+// 🏆 MEDALS & ACHIEVEMENTS
+export interface Medal {
+  id: string;
+  name: string;
+  description: string;
+  icon: string; // emoji
+  rarity: "Bronze" | "Silver" | "Gold" | "Platinum" | "Legendary";
+  awardedDate: Date;
+  missionId?: string;
+}
+
+// 🎰 RANDOM DAILY EVENTS
+export interface RandomEvent {
+  id: string;
+  title: string;
+  description: string;
+  type:
+    | "Windfall" // Good fortune - money, gear, recruits
+    | "Disaster" // Bad luck - budget cuts, scandals
+    | "Opportunity" // Time-limited bonus mission
+    | "Drama" // Officer drama, rivalries
+    | "Chaos" // Wild card events
+    | "Morale"; // Team bonding events
+  effects: {
+    budgetChange?: number;
+    reputationChange?: number;
+    moraleChange?: number; // applied to all officers
+    officerAffected?: string; // specific officer ID
+    bonusMission?: Partial<Mission>;
+  };
+  choices?: RandomEventChoice[];
+  resolved: boolean;
+}
+
+export interface RandomEventChoice {
+  id: string;
+  label: string;
+  effects: RandomEvent["effects"];
+  risk?: number; // 0-100 chance of backfiring
+}
+
+// 💀 NEMESIS SYSTEM - Released suspects return for revenge
+export interface Nemesis {
+  id: string;
+  originalSuspectId: string;
+  name: string;
+  alias?: string;
+  grudgeLevel: number; // 1-10, how much they hate you
+  encounterCount: number;
+  lastEncounter: Date;
+  status: "At Large" | "Plotting" | "Captured" | "Eliminated";
+  signature: string; // Their calling card or MO
+  backstory: string;
+}
+
+// 🍕 MORALE BOOST EVENTS
+export interface MoraleEvent {
+  id: string;
+  title: string;
+  description: string;
+  type: "Pizza Party" | "BBQ" | "Training Day" | "Awards Ceremony" | "Day Off" | "Team Building";
+  cost: number;
+  moraleBoost: number;
+  duration: string;
+  icon: string;
+}
+
 export interface GameState {
   commanderName: string;
   squadName: string;
@@ -182,6 +253,14 @@ export interface GameState {
   evidenceLocker: EvidenceItem[];
   recentNews: NewsStory[];
   districts: District[];
+  // 🎮 NEW FUN FEATURES
+  nemeses: Nemesis[];
+  pendingRandomEvent?: RandomEvent | null;
+  moraleEvents: MoraleEvent[];
+  totalMedalsAwarded: number;
+  squadMotto?: string;
+  luckyStreak: number; // consecutive successful missions
+  unluckyStreak: number; // consecutive failed missions
 }
 
 export interface LogEntry {

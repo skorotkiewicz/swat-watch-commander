@@ -4,7 +4,10 @@ import type { GameState, InterrogationMessage, Mission, Suspect } from "../../ty
 import { CommunityEvents } from "./CommunityEvents";
 import { InterrogationModal } from "./InterrogationModal";
 import { MissionCard } from "./MissionCard";
+import { MoraleBoostPanel } from "./MoraleBoostPanel";
+import { NemesisPanel } from "./NemesisPanel";
 import { OfficerCard } from "./OfficerCard";
+import { RandomEventModal } from "./RandomEventModal";
 
 interface Props {
   gameState: GameState;
@@ -40,6 +43,12 @@ interface Props {
   onFileEvidence: (id: string) => void;
   onPursueLead: (id: string) => void;
   onDismissNews: (id: string) => void;
+  // 🎮 NEW FUN FEATURES
+  onResolveRandomEvent: (choiceId?: string) => void;
+  onDismissRandomEvent: () => void;
+  onHostMoraleEvent: (eventId: string) => void;
+  onCreateNemesis: (suspectId: string) => void;
+  onTriggerNemesisMission: (nemesisId: string) => void;
 }
 
 export function Dashboard({
@@ -72,9 +81,24 @@ export function Dashboard({
   onFileEvidence,
   onPursueLead,
   onDismissNews,
+  // 🎮 NEW FUN FEATURES
+  onResolveRandomEvent,
+  onDismissRandomEvent,
+  onHostMoraleEvent,
+  onCreateNemesis,
+  onTriggerNemesisMission,
 }: Props) {
   const [activeTab, setActiveTab] = useState<
-    "squad" | "missions" | "logs" | "events" | "custody" | "evidence" | "news" | "map"
+    | "squad"
+    | "missions"
+    | "logs"
+    | "events"
+    | "custody"
+    | "evidence"
+    | "news"
+    | "map"
+    | "morale"
+    | "nemesis"
   >("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
@@ -246,6 +270,37 @@ export function Dashboard({
             {gameState.recentNews.length > 0 && (
               <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
                 {gameState.recentNews.length}
+              </span>
+            )}
+          </button>
+
+          {/* 🎮 NEW FUN TABS */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("morale")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "morale" ? "bg-lime-500 text-white shadow-lg shadow-lime-500/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>🍕</span> Morale
+            {gameState.moraleEvents.length > 0 && (
+              <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                {gameState.moraleEvents.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("nemesis")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "nemesis" ? "bg-red-700 text-white shadow-lg shadow-red-700/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>💀</span> Nemesis
+            {gameState.nemeses.filter((n) => n.status === "At Large" || n.status === "Plotting")
+              .length > 0 && (
+              <span className="ml-auto bg-red-500/40 px-1.5 py-0.5 rounded text-[10px] animate-pulse">
+                {
+                  gameState.nemeses.filter(
+                    (n) => n.status === "At Large" || n.status === "Plotting",
+                  ).length
+                }
               </span>
             )}
           </button>
@@ -688,6 +743,25 @@ export function Dashboard({
                           >
                             Release
                           </button>
+                          {/* 💀 Nemesis Option - for dangerous suspects */}
+                          {(s.resistance >= 60 || s.intelLevel >= 50) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  window.confirm(
+                                    `⚠️ WARNING: ${s.name} is a dangerous individual. Releasing them may create a NEMESIS who will return for revenge. Proceed?`,
+                                  )
+                                ) {
+                                  onCreateNemesis(s.id);
+                                }
+                              }}
+                              className="flex-1 py-2 bg-red-900/20 hover:bg-red-700 text-red-400 hover:text-white border border-red-700/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                              title="Release this dangerous suspect and they may return as a nemesis"
+                            >
+                              💀 Release
+                            </button>
+                          )}
                         </div>
                       ) : s.status === "Sentenced" || s.status === "Released" ? (
                         <button
@@ -930,8 +1004,37 @@ export function Dashboard({
               </div>
             </div>
           )}
+
+          {/* 🍕 MORALE TAB */}
+          {activeTab === "morale" && (
+            <MoraleBoostPanel
+              events={gameState.moraleEvents}
+              officers={gameState.officers}
+              budget={gameState.budget}
+              onHostEvent={onHostMoraleEvent}
+              isLoading={isLoading}
+            />
+          )}
+
+          {/* 💀 NEMESIS TAB */}
+          {activeTab === "nemesis" && (
+            <NemesisPanel
+              nemeses={gameState.nemeses}
+              onTriggerMission={onTriggerNemesisMission}
+              isLoading={isLoading}
+            />
+          )}
         </div>
       </main>
+
+      {/* 🎰 RANDOM EVENT MODAL */}
+      {gameState.pendingRandomEvent && (
+        <RandomEventModal
+          event={gameState.pendingRandomEvent}
+          onResolve={onResolveRandomEvent}
+          onDismiss={onDismissRandomEvent}
+        />
+      )}
 
       {/* Interrogation Modal */}
       {activeInterrogationSuspect && onInterrogate && onResolveInterrogation && (

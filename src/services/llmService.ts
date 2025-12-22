@@ -141,6 +141,10 @@ export async function generateOfficer(
     injuryDays: 0,
     salary: calculateSalary(data.rank),
     gear: { armorLevel: 1, weaponLevel: 1, utilityLevel: 1 },
+    // 🎮 NEW FUN FEATURES
+    medals: [],
+    killCount: 0,
+    livesaved: 0,
   };
 }
 
@@ -414,6 +418,252 @@ export async function generateAAR(
   return extractJSON(response) as any;
 }
 
+// 🎰 RANDOM DAILY EVENT GENERATOR
+import type { Medal, MoraleEvent, Nemesis, RandomEvent } from "../types/game";
+
+export async function generateRandomEvent(
+  day: number,
+  reputation: number,
+  budget: number,
+  officerCount: number,
+  luckyStreak: number,
+  unluckyStreak: number,
+): Promise<RandomEvent> {
+  const eventTypes = ["Windfall", "Disaster", "Opportunity", "Drama", "Chaos", "Morale"];
+
+  // Bias events based on streaks
+  let biasedType = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+  if (luckyStreak >= 3 && Math.random() > 0.6) biasedType = "Disaster"; // Pride before fall
+  if (unluckyStreak >= 3 && Math.random() > 0.6) biasedType = "Windfall"; // Silver lining
+
+  const prompt = `Generate a RANDOM DAILY EVENT for a SWAT team. Day: ${day}, Reputation: ${reputation}, Budget: $${budget}, Officers: ${officerCount}.
+  
+  Event type: ${biasedType}
+  
+  Be CREATIVE and FUN! Examples:
+  - Windfall: "Anonymous donor gives $50k", "City council appreciates work, bonus granted"
+  - Disaster: "Budget cuts incoming!", "Officer caught on camera jaywalking, PR nightmare"
+  - Opportunity: "Intel on a high-value target, limited window", "Celebrity ride-along offer"
+  - Drama: "Two officers have beef", "Rookie challenges veteran to marksmanship contest"
+  - Chaos: "Donut shop got robbed (not by us)", "Someone released a goat in the precinct"
+  - Morale: "Surprise birthday party", "Team bonding opportunity"
+  
+  Respond with ONLY valid JSON:
+  {
+    "title": "Catchy title",
+    "description": "2-3 fun sentences describing what happened",
+    "type": "${biasedType}",
+    "effects": {
+      "budgetChange": -10000 to 50000 (or null),
+      "reputationChange": -10 to 15 (or null),
+      "moraleChange": -15 to 20 (or null)
+    },
+    "choices": [
+      { "id": "choice1", "label": "Option A", "effects": { ... }, "risk": 0-100 },
+      { "id": "choice2", "label": "Option B", "effects": { ... }, "risk": 0-100 }
+    ] or null if no choice needed
+  }`;
+
+  const response = await callLLM(prompt, 0.95);
+  const data = extractJSON(response) as any;
+
+  return {
+    ...data,
+    id: crypto.randomUUID(),
+    resolved: false,
+    choices: data.choices?.map((c: any) => ({ ...c, id: c.id || crypto.randomUUID() })),
+  };
+}
+
+// 💀 NEMESIS SYSTEM - Generate a nemesis from a released suspect
+export async function generateNemesis(
+  suspectName: string,
+  originalCrime: string,
+  daysAtLarge: number,
+): Promise<Partial<Nemesis>> {
+  const prompt = `A released suspect has returned as a NEMESIS hunting the SWAT team!
+  
+  Original Name: ${suspectName}
+  Original Crime: ${originalCrime}
+  Days at large: ${daysAtLarge}
+  
+  Generate their villain arc. Be DRAMATIC and MEMORABLE!
+  
+  Respond with ONLY valid JSON:
+  {
+    "alias": "Cool villain name or nickname",
+    "grudgeLevel": 1-10,
+    "signature": "Their calling card or MO (e.g., 'leaves chess pieces at crime scenes')",
+    "backstory": "2 sentences about their grudge and what they've been doing"
+  }`;
+
+  const response = await callLLM(prompt, 0.9);
+  return extractJSON(response) as any;
+}
+
+// Generate nemesis-related mission
+export async function generateNemesisMission(nemesis: Nemesis): Promise<Mission> {
+  const prompt = `Generate a REVENGE MISSION involving nemesis "${nemesis.alias || nemesis.name}".
+  
+  Nemesis Details:
+  - Grudge Level: ${nemesis.grudgeLevel}/10
+  - Signature: ${nemesis.signature}
+  - Encounters: ${nemesis.encounterCount}
+  
+  Make it PERSONAL and HIGH STAKES!
+  
+  Respond with ONLY valid JSON:
+  {
+    "title": "Mission Name (reference the nemesis)",
+    "description": "Personal stakes description",
+    "type": "High-Risk Warrant",
+    "priority": "Critical",
+    "location": "A dramatic location",
+    "estimatedDuration": "2-4 hours",
+    "requiredOfficers": 4-6,
+    "requiredSpecializations": ["Assault", "Sniper"],
+    "riskLevel": 7-10,
+    "rewards": { "experience": 200, "reputation": 15, "budget": 25000 },
+    "briefing": "Detailed briefing about confronting the nemesis"
+  }`;
+
+  const response = await callLLM(prompt, 0.8);
+  const data = extractJSON(response) as any;
+
+  return {
+    ...data,
+    id: crypto.randomUUID(),
+    assignedOfficers: [],
+    status: "Available",
+    createdAt: new Date(),
+    rewards: data.rewards || { experience: 200, reputation: 15, budget: 25000 },
+    requiredSpecializations: data.requiredSpecializations || [],
+  };
+}
+
+// 🏆 MEDAL AWARD GENERATOR
+export async function generateMedal(
+  officerName: string,
+  achievement: string,
+  missionTitle?: string,
+): Promise<Medal> {
+  const prompt = `Award a MEDAL to officer "${officerName}" for: "${achievement}"${missionTitle ? ` during mission "${missionTitle}"` : ""}.
+  
+  Be creative with medal names! Examples:
+  - "Distinguished Service Cross"
+  - "The Iron Shield"
+  - "Purple Heart"
+  - "Civilian Guardian Award"
+  - "The Negotiator's Ribbon"
+  
+  Respond with ONLY valid JSON:
+  {
+    "name": "Medal Name",
+    "description": "What they did to earn it (1 sentence)",
+    "icon": "Single emoji representing the medal",
+    "rarity": "Bronze", "Silver", "Gold", "Platinum", or "Legendary"
+  }`;
+
+  const response = await callLLM(prompt, 0.85);
+  const data = extractJSON(response) as any;
+
+  return {
+    ...data,
+    id: crypto.randomUUID(),
+    awardedDate: new Date(),
+  };
+}
+
+// 🍕 MORALE BOOST EVENT GENERATOR
+export async function generateMoraleEvents(): Promise<MoraleEvent[]> {
+  return [
+    {
+      id: crypto.randomUUID(),
+      title: "Pizza Party",
+      description: "Order pizzas for the whole squad. Nothing boosts morale like carbs and cheese!",
+      type: "Pizza Party",
+      cost: 500,
+      moraleBoost: 15,
+      duration: "2 hours",
+      icon: "🍕",
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "HQ BBQ",
+      description: "Fire up the grill behind the precinct. Burgers, dogs, and brotherhood.",
+      type: "BBQ",
+      cost: 1000,
+      moraleBoost: 20,
+      duration: "4 hours",
+      icon: "🍔",
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Tactical Training Day",
+      description: "Live-fire exercises at the range. Competitive but bonding.",
+      type: "Training Day",
+      cost: 2000,
+      moraleBoost: 25,
+      duration: "Full day",
+      icon: "🎯",
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Awards Ceremony",
+      description: "Formal ceremony to recognize achievements. Dress uniforms required.",
+      type: "Awards Ceremony",
+      cost: 3000,
+      moraleBoost: 30,
+      duration: "Evening",
+      icon: "🏆",
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Squad Day Off",
+      description: "Give the team a well-deserved break. Happy officers work better.",
+      type: "Day Off",
+      cost: 0,
+      moraleBoost: 35,
+      duration: "Full day",
+      icon: "🏖️",
+    },
+    {
+      id: crypto.randomUUID(),
+      title: "Escape Room Challenge",
+      description: "Team building exercise at a local escape room. Ironic for a SWAT team.",
+      type: "Team Building",
+      cost: 1500,
+      moraleBoost: 22,
+      duration: "3 hours",
+      icon: "🔐",
+    },
+  ];
+}
+
+// Generate officer nickname based on achievements
+export async function generateNickname(
+  officerName: string,
+  specialization: string,
+  killCount: number,
+  livesSaved: number,
+  missionsCompleted: number,
+): Promise<string> {
+  const prompt = `Generate a BADASS NICKNAME for SWAT officer "${officerName}".
+  
+  Stats:
+  - Specialization: ${specialization}
+  - Kills: ${killCount}
+  - Lives Saved: ${livesSaved}
+  - Missions: ${missionsCompleted}
+  
+  Examples: "The Ghost", "Deadeye", "Doc", "Breaker", "Ice Man", "The Wall"
+  
+  Respond with ONLY the nickname in quotes, nothing else.`;
+
+  const response = await callLLM(prompt, 0.9);
+  return response.replace(/['"]/g, "").trim();
+}
+
 const llmService = {
   generateOfficer,
   calculateSalary,
@@ -432,6 +682,13 @@ const llmService = {
   generateNewsStory,
   analyzeEvidence,
   generateAAR,
+  // 🎮 NEW FUN FEATURES
+  generateRandomEvent,
+  generateNemesis,
+  generateNemesisMission,
+  generateMedal,
+  generateMoraleEvents,
+  generateNickname,
 };
 
 export default llmService;

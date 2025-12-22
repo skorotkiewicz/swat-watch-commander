@@ -47,6 +47,12 @@ function App() {
     fileEvidence,
     pursueLead,
     dismissNews,
+    // 🎮 NEW FUN FEATURES
+    resolveRandomEvent,
+    dismissRandomEvent,
+    hostMoraleEvent,
+    createNemesis,
+    triggerNemesisMission,
   } = useGameState();
 
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
@@ -162,6 +168,12 @@ function App() {
         onFileEvidence={fileEvidence}
         onPursueLead={pursueLead}
         onDismissNews={dismissNews}
+        // 🎮 NEW FUN FEATURES
+        onResolveRandomEvent={resolveRandomEvent}
+        onDismissRandomEvent={dismissRandomEvent}
+        onHostMoraleEvent={hostMoraleEvent}
+        onCreateNemesis={createNemesis}
+        onTriggerNemesisMission={triggerNemesisMission}
       />
 
       {/* Advance Day Transition */}

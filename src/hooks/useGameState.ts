@@ -38,6 +38,14 @@ const INITIAL_STATE: GameState = {
     { id: "4", name: "Suburbs", crimeLevel: 15, status: "Stable" },
     { id: "5", name: "North Side", crimeLevel: 60, status: "Rising" },
   ],
+  // 🎮 NEW FUN FEATURES
+  nemeses: [],
+  pendingRandomEvent: null,
+  moraleEvents: [],
+  totalMedalsAwarded: 0,
+  squadMotto: "",
+  luckyStreak: 0,
+  unluckyStreak: 0,
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -83,6 +91,14 @@ export function useGameState() {
         if (parsed.evidenceLocker === undefined) parsed.evidenceLocker = [];
         if (parsed.recentNews === undefined) parsed.recentNews = [];
         if (parsed.districts === undefined) parsed.districts = INITIAL_STATE.districts;
+        // 🎮 NEW FUN FEATURES MIGRATION
+        if (parsed.nemeses === undefined) parsed.nemeses = [];
+        if (parsed.pendingRandomEvent === undefined) parsed.pendingRandomEvent = null;
+        if (parsed.moraleEvents === undefined) parsed.moraleEvents = [];
+        if (parsed.totalMedalsAwarded === undefined) parsed.totalMedalsAwarded = 0;
+        if (parsed.squadMotto === undefined) parsed.squadMotto = "";
+        if (parsed.luckyStreak === undefined) parsed.luckyStreak = 0;
+        if (parsed.unluckyStreak === undefined) parsed.unluckyStreak = 0;
 
         if (parsed.officers) {
           parsed.officers = parsed.officers.map((o: any) => ({
@@ -90,6 +106,11 @@ export function useGameState() {
             salary: o.salary || llmService.calculateSalary(o.rank),
             gear: o.gear || { armorLevel: 1, weaponLevel: 1, utilityLevel: 1 },
             morale: o.morale ?? 100,
+            // 🎮 NEW OFFICER FIELDS
+            medals: o.medals || [],
+            killCount: o.killCount || 0,
+            livesaved: o.livesaved || 0,
+            nickname: o.nickname || undefined,
           }));
         }
 
@@ -625,9 +646,47 @@ export function useGameState() {
       console.error("Failed to generate new day event", _error);
     }
 
+    // 🎰 RANDOM DAILY EVENT - The fun part!
+    try {
+      const randomEvent = await llmService.generateRandomEvent(
+        gameState.day + 1,
+        gameState.reputation,
+        gameState.budget,
+        gameState.officers.length,
+        gameState.luckyStreak,
+        gameState.unluckyStreak,
+      );
+      setGameState((prev) => ({
+        ...prev,
+        pendingRandomEvent: randomEvent,
+      }));
+      addLog("Info", `🎲 DAILY EVENT: ${randomEvent.title}`);
+    } catch (_error) {
+      console.error("Failed to generate random event", _error);
+    }
+
+    // 🍕 Refresh morale events
+    try {
+      const moraleEvents = await llmService.generateMoraleEvents();
+      setGameState((prev) => ({
+        ...prev,
+        moraleEvents,
+      }));
+    } catch (_error) {
+      console.error("Failed to generate morale events", _error);
+    }
+
     addLog("Info", "New shift rotation begins. Payroll processed. Dispatch radio refreshed.");
     setIsAdvancingDay(false);
-  }, [gameState.reputation, addLog]);
+  }, [
+    gameState.reputation,
+    gameState.day,
+    gameState.budget,
+    gameState.officers.length,
+    gameState.luckyStreak,
+    gameState.unluckyStreak,
+    addLog,
+  ]);
 
   const generateCommunityEvent = useCallback(async () => {
     setIsLoading(true);
@@ -1119,6 +1178,223 @@ export function useGameState() {
         console.error("Lead Error:", err);
       } finally {
         setIsLoading(false);
+      }
+    },
+
+    // 🎰 RANDOM EVENT HANDLING
+    resolveRandomEvent: (choiceId?: string) => {
+      setGameState((prev) => {
+        if (!prev.pendingRandomEvent) return prev;
+
+        const event = prev.pendingRandomEvent;
+        let effects = event.effects;
+
+        // If there was a choice, use its effects
+        if (choiceId && event.choices) {
+          const choice = event.choices.find((c) => c.id === choiceId);
+          if (choice) {
+            // Check for backfire based on risk
+            if (choice.risk && Math.random() * 100 < choice.risk) {
+              // Backfire! Inverse effects
+              effects = {
+                budgetChange: -(choice.effects.budgetChange || 0),
+                reputationChange: -(choice.effects.reputationChange || 0),
+                moraleChange: -(choice.effects.moraleChange || 0),
+              };
+              addLog("Warning", `🎲 Choice backfired! Things didn't go as planned...`);
+            } else {
+              effects = choice.effects;
+            }
+          }
+        }
+
+        // Apply effects
+        let updatedOfficers = prev.officers;
+        if (effects.moraleChange) {
+          updatedOfficers = prev.officers.map((o) => ({
+            ...o,
+            morale: Math.min(100, Math.max(0, o.morale + (effects.moraleChange || 0))),
+          }));
+        }
+
+        addLog(
+          effects.budgetChange && effects.budgetChange > 0 ? "Success" : "Info",
+          `🎲 Event resolved: ${event.title}`,
+        );
+
+        return {
+          ...prev,
+          pendingRandomEvent: null,
+          budget: prev.budget + (effects.budgetChange || 0),
+          reputation: Math.min(100, Math.max(0, prev.reputation + (effects.reputationChange || 0))),
+          officers: updatedOfficers,
+        };
+      });
+    },
+
+    dismissRandomEvent: () => {
+      setGameState((prev) => ({
+        ...prev,
+        pendingRandomEvent: null,
+      }));
+    },
+
+    // 🍕 MORALE BOOST EVENTS
+    hostMoraleEvent: (eventId: string) => {
+      setGameState((prev) => {
+        const event = prev.moraleEvents.find((e) => e.id === eventId);
+        if (!event) return prev;
+        if (prev.budget < event.cost) {
+          setError(`Not enough budget for ${event.title}. Need $${event.cost.toLocaleString()}.`);
+          return prev;
+        }
+
+        const updatedOfficers = prev.officers.map((o) => ({
+          ...o,
+          morale: Math.min(100, o.morale + event.moraleBoost),
+        }));
+
+        addLog(
+          "Success",
+          `${event.icon} ${event.title} hosted! Squad morale boosted by ${event.moraleBoost}%!`,
+        );
+
+        return {
+          ...prev,
+          budget: prev.budget - event.cost,
+          officers: updatedOfficers,
+          moraleEvents: prev.moraleEvents.filter((e) => e.id !== eventId),
+        };
+      });
+    },
+
+    // 🏆 MEDAL AWARDING
+    awardMedal: async (officerId: string, achievement: string, missionTitle?: string) => {
+      const officer = gameState.officers.find((o) => o.id === officerId);
+      if (!officer) return;
+
+      setIsLoading(true);
+      try {
+        const medal = await llmService.generateMedal(officer.name, achievement, missionTitle);
+
+        setGameState((prev) => ({
+          ...prev,
+          officers: prev.officers.map((o) =>
+            o.id === officerId
+              ? { ...o, medals: [...o.medals, medal.id], morale: Math.min(100, o.morale + 10) }
+              : o,
+          ),
+          totalMedalsAwarded: prev.totalMedalsAwarded + 1,
+        }));
+
+        addLog(
+          "Success",
+          `🏆 MEDAL AWARDED: ${officer.name} received "${medal.name}" (${medal.rarity}) - ${medal.description}`,
+        );
+      } catch (err) {
+        console.error("Medal generation failed:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+
+    // 💀 NEMESIS TRACKING (enhanced release suspect)
+    createNemesis: async (suspectId: string) => {
+      const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
+      if (!suspect) return;
+
+      try {
+        const nemesisData = await llmService.generateNemesis(
+          suspect.name,
+          suspect.crime,
+          Math.floor(Math.random() * 30) + 10, // Random days at large
+        );
+
+        const nemesis = {
+          id: crypto.randomUUID(),
+          originalSuspectId: suspect.id,
+          name: suspect.name,
+          alias: nemesisData.alias,
+          grudgeLevel: nemesisData.grudgeLevel || 5,
+          encounterCount: 0,
+          lastEncounter: new Date(),
+          status: "At Large" as const,
+          signature: nemesisData.signature || "Unknown MO",
+          backstory: nemesisData.backstory || "A dangerous individual with a grudge.",
+        };
+
+        setGameState((prev) => ({
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.filter((s) => s.id !== suspectId),
+          nemeses: [...prev.nemeses, nemesis],
+        }));
+
+        addLog(
+          "Warning",
+          `💀 NEMESIS CREATED: ${nemesis.alias || nemesis.name} has sworn revenge! "${nemesis.signature}"`,
+        );
+      } catch (err) {
+        console.error("Nemesis generation failed:", err);
+        // Still remove from custody
+        setGameState((prev) => ({
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.filter((s) => s.id !== suspectId),
+        }));
+      }
+    },
+
+    // Generate a revenge mission from a nemesis
+    triggerNemesisMission: async (nemesisId: string) => {
+      const nemesis = gameState.nemeses.find((n) => n.id === nemesisId);
+      if (!nemesis) return;
+
+      setIsLoading(true);
+      try {
+        const mission = await llmService.generateNemesisMission(nemesis);
+
+        setGameState((prev) => ({
+          ...prev,
+          activeMissions: [...prev.activeMissions, mission],
+          nemeses: prev.nemeses.map((n) =>
+            n.id === nemesisId
+              ? { ...n, status: "Plotting" as const, encounterCount: n.encounterCount + 1 }
+              : n,
+          ),
+        }));
+
+        addLog(
+          "Warning",
+          `💀 ${nemesis.alias || nemesis.name} has surfaced! New mission available.`,
+        );
+      } catch (err) {
+        console.error("Nemesis mission failed:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+
+    // 🎖️ Generate nickname for heroic officer
+    generateOfficerNickname: async (officerId: string) => {
+      const officer = gameState.officers.find((o) => o.id === officerId);
+      if (!officer || officer.nickname) return;
+
+      try {
+        const nickname = await llmService.generateNickname(
+          officer.name,
+          officer.specialization,
+          officer.killCount,
+          officer.livesaved,
+          officer.missionsCompleted,
+        );
+
+        setGameState((prev) => ({
+          ...prev,
+          officers: prev.officers.map((o) => (o.id === officerId ? { ...o, nickname } : o)),
+        }));
+
+        addLog("Success", `🎖️ ${officer.name} has earned the nickname "${nickname}"!`);
+      } catch (err) {
+        console.error("Nickname generation failed:", err);
       }
     },
   };

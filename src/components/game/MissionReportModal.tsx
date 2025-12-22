@@ -127,6 +127,29 @@ export function MissionReportModal({ result, onClose }: Props) {
               </div>
             </div>
           </div>
+
+          {result.aar && (
+            <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xs text-indigo-400 font-black uppercase tracking-widest">
+                  COMMAND DEBRIEFING (AAR)
+                </h3>
+                <div className="flex gap-4">
+                  <div className="text-center">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Tactical</p>
+                    <p className="text-sm font-black text-white">{result.aar.tacticalSoundness}%</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Safety</p>
+                    <p className="text-sm font-black text-white">{result.aar.civilianSafety}%</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-indigo-100/80 leading-relaxed font-serif italic border-l-2 border-indigo-500/30 pl-4">
+                "{result.aar.debriefing}"
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="p-8 pt-0">

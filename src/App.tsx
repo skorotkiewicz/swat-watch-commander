@@ -42,6 +42,11 @@ function App() {
     chargeSuspect,
     processTrial,
     archiveSuspect,
+    recruitCI,
+    analyzeEvidence,
+    fileEvidence,
+    pursueLead,
+    dismissNews,
   } = useGameState();
 
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
@@ -152,6 +157,11 @@ function App() {
         onChargeSuspect={chargeSuspect}
         onProcessTrial={processTrial}
         onArchiveSuspect={archiveSuspect}
+        onRecruitCI={recruitCI}
+        onAnalyzeEvidence={analyzeEvidence}
+        onFileEvidence={fileEvidence}
+        onPursueLead={pursueLead}
+        onDismissNews={dismissNews}
       />
 
       {/* Advance Day Transition */}

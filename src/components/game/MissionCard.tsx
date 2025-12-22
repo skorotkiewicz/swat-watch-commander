@@ -137,14 +137,14 @@ export function MissionCard({
         <div className="flex items-center justify-between pt-3 border-t border-slate-800">
           <div className="flex gap-4 text-sm">
             <span className="text-emerald-400">
-              <span className="text-slate-500">XP:</span> +{mission.rewards.experience}
+              <span className="text-slate-500">XP:</span> +{mission.rewards?.experience ?? 0}
             </span>
             <span className="text-cyan-400">
-              <span className="text-slate-500">Rep:</span> +{mission.rewards.reputation}
+              <span className="text-slate-500">Rep:</span> +{mission.rewards?.reputation ?? 0}
             </span>
             <span className="text-emerald-400">
               <span className="text-slate-500">Fund:</span> $
-              {mission.rewards.budget.toLocaleString()}
+              {(mission.rewards?.budget ?? 0).toLocaleString()}
             </span>
           </div>
         </div>

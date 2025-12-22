@@ -44,6 +44,7 @@ export interface Mission {
     | "Bomb Threat";
   priority: "Low" | "Medium" | "High" | "Critical";
   location: string;
+  districtId?: string;
   estimatedDuration: string;
   requiredOfficers: number;
   requiredSpecializations: string[];
@@ -90,6 +91,12 @@ export interface MissionResult {
     reputation: number;
     budget: number;
   };
+  aar?: {
+    efficiency: number;
+    tacticalSoundness: number;
+    civilianSafety: number;
+    debriefing: string;
+  };
 }
 
 export interface CommunityEvent {
@@ -116,10 +123,37 @@ export interface Suspect {
   personality: string;
   intelLevel: number; // 0-100, how much they know
   resistance: number; // 0-100, how hard they are to crack
-  status: "Custody" | "Interrogated" | "Released" | "Charged" | "Sentenced" | "Archived";
+  status: "Custody" | "Interrogated" | "Released" | "Charged" | "Sentenced" | "Archived" | "CI";
   intelRevealed?: string;
   trialVerdict?: string;
   trialSentence?: string;
+}
+
+export interface EvidenceItem {
+  id: string;
+  name: string;
+  description: string;
+  sourceMissionId: string;
+  suspectId?: string;
+  status: "Stored" | "Analyzed";
+  analysisReport?: string;
+}
+
+export interface District {
+  id: string;
+  name: string;
+  crimeLevel: number; // 0-100
+  status: "Stable" | "Rising" | "Critical";
+  activeKingpin?: string;
+}
+
+export interface NewsStory {
+  id: string;
+  headline: string;
+  content: string;
+  sentiment: "Positive" | "Neutral" | "Negative";
+  sourceMissionId?: string;
+  timestamp: Date;
 }
 
 export interface InterrogationMessage {
@@ -145,6 +179,9 @@ export interface GameState {
   lastDismissedOfficer?: Officer | null;
   availableEvents: CommunityEvent[];
   suspectsInCustody: Suspect[];
+  evidenceLocker: EvidenceItem[];
+  recentNews: NewsStory[];
+  districts: District[];
 }
 
 export interface LogEntry {

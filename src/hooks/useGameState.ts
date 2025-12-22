@@ -1,7 +1,16 @@
 // Custom hook for managing game state
 import { useCallback, useEffect, useState } from "react";
 import * as llmService from "../services/llmService";
-import type { GameState, LogEntry, Mission, MissionEvent, MissionOption } from "../types/game";
+import type {
+  EvidenceItem,
+  GameState,
+  InterrogationMessage,
+  LogEntry,
+  Mission,
+  MissionEvent,
+  MissionOption,
+  Suspect,
+} from "../types/game";
 
 const INITIAL_STATE: GameState = {
   commanderName: "",
@@ -20,6 +29,15 @@ const INITIAL_STATE: GameState = {
   maxMissionsPerDay: 5,
   availableEvents: [],
   suspectsInCustody: [],
+  evidenceLocker: [],
+  recentNews: [],
+  districts: [
+    { id: "1", name: "Downtown", crimeLevel: 30, status: "Stable" },
+    { id: "2", name: "The Docks", crimeLevel: 50, status: "Rising" },
+    { id: "3", name: "Industrial Zone", crimeLevel: 40, status: "Stable" },
+    { id: "4", name: "Suburbs", crimeLevel: 15, status: "Stable" },
+    { id: "5", name: "North Side", crimeLevel: 60, status: "Rising" },
+  ],
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -62,11 +80,16 @@ export function useGameState() {
         if (parsed.maxMissionsPerDay === undefined) parsed.maxMissionsPerDay = 5;
         if (parsed.availableEvents === undefined) parsed.availableEvents = [];
         if (parsed.suspectsInCustody === undefined) parsed.suspectsInCustody = [];
+        if (parsed.evidenceLocker === undefined) parsed.evidenceLocker = [];
+        if (parsed.recentNews === undefined) parsed.recentNews = [];
+        if (parsed.districts === undefined) parsed.districts = INITIAL_STATE.districts;
+
         if (parsed.officers) {
           parsed.officers = parsed.officers.map((o: any) => ({
             ...o,
             salary: o.salary || llmService.calculateSalary(o.rank),
             gear: o.gear || { armorLevel: 1, weaponLevel: 1, utilityLevel: 1 },
+            morale: o.morale ?? 100,
           }));
         }
 
@@ -219,11 +242,19 @@ export function useGameState() {
         gameState.day,
         gameState.officers.length,
       );
-      setGameState((prev) => ({
-        ...prev,
-        activeMissions: [...prev.activeMissions, mission],
-        missionsAttemptedToday: prev.missionsAttemptedToday + 1,
-      }));
+      setGameState((prev) => {
+        const randomDistrict = prev.districts[Math.floor(Math.random() * prev.districts.length)];
+        const updatedMission = {
+          ...mission,
+          districtId: randomDistrict.id,
+          location: `${mission.location} (${randomDistrict.name})`,
+        };
+        return {
+          ...prev,
+          activeMissions: [...prev.activeMissions, updatedMission],
+          missionsAttemptedToday: prev.missionsAttemptedToday + 1,
+        };
+      });
       addLog("Mission", `New mission available: ${mission.title} (${mission.priority} priority)`);
       return mission;
     } catch (e) {
@@ -393,7 +424,6 @@ export function useGameState() {
                 Math.max(0, prev.reputation + (result.success ? mission.rewards.reputation : -10)),
               ),
               budget: result.success ? prev.budget + mission.rewards.budget : prev.budget,
-              currentMissionEvents: updatedEvents.filter((e) => e.missionId !== mission.id),
               lastMissionResult: {
                 mission: completedMission,
                 success: result.success,
@@ -404,13 +434,45 @@ export function useGameState() {
               },
             };
 
+            // Generate After-Action Review (AAR)
+            llmService
+              .generateAAR(mission, result.outcome, result.casualties, result.injuries)
+              .then((aar) => {
+                setGameState((s) => ({
+                  ...s,
+                  lastMissionResult: s.lastMissionResult ? { ...s.lastMissionResult, aar } : null,
+                }));
+              })
+              .catch(console.error);
+
+            // district update
+            if (mission.districtId) {
+              nextState.districts = nextState.districts.map((d) => {
+                if (d.id === mission.districtId) {
+                  const change = result.success ? -15 : 10;
+                  const newLevel = Math.min(100, Math.max(0, d.crimeLevel + change));
+                  return {
+                    ...d,
+                    crimeLevel: newLevel,
+                    status:
+                      newLevel > 80 ? "Critical" : newLevel > 40 ? "Rising" : ("Stable" as const),
+                  };
+                }
+                return d;
+              });
+            }
+
             // Capture Suspect Logic
             if (result.success && Math.random() > 0.4) {
               llmService
                 .generateSuspect(mission)
                 .then((suspectData) => {
-                  const suspect = {
-                    ...suspectData,
+                  const suspect: Suspect = {
+                    name: suspectData.name || "Unknown Suspect",
+                    crime: suspectData.crime || mission.title,
+                    personality: suspectData.personality || "Cooperative",
+                    intelLevel: suspectData.intelLevel || 10,
+                    resistance: suspectData.resistance || 50,
                     id: crypto.randomUUID(),
                     status: "Custody",
                   };
@@ -422,6 +484,38 @@ export function useGameState() {
                 })
                 .catch(console.error);
             }
+
+            // Evidence Discovery Logic
+            if (result.success && Math.random() > 0.3) {
+              llmService
+                .generateEvidence(mission)
+                .then((evidenceData) => {
+                  const evidence: EvidenceItem = {
+                    id: crypto.randomUUID(),
+                    name: evidenceData.name || "Miscellaneous Evidence",
+                    description: evidenceData.description || "Found at the scene of the operation.",
+                    sourceMissionId: mission.id,
+                    status: "Stored",
+                  };
+                  setGameState((s) => ({
+                    ...s,
+                    evidenceLocker: [...s.evidenceLocker, evidence],
+                  }));
+                  addLog("Info", `EVIDENCE RECOVERY: ${evidence.name} was secured at the scene.`);
+                })
+                .catch(console.error);
+            }
+
+            // News Coverage Logic
+            llmService
+              .generateNewsStory(mission, result.success, result.outcome)
+              .then((news) => {
+                setGameState((s) => ({
+                  ...s,
+                  recentNews: [news, ...s.recentNews].slice(0, 10),
+                }));
+              })
+              .catch(console.error);
           }
           return nextState;
         });
@@ -508,6 +602,15 @@ export function useGameState() {
         activeMissions: prev.activeMissions.filter((m) => m.status === "In Progress"),
         availableEvents: [], // Clear old events
         officers: updatedOfficers,
+        districts: prev.districts.map((d) => {
+          const naturalIncrease = Math.floor(Math.random() * 5) + (prev.reputation < 30 ? 5 : 0);
+          const newLevel = Math.min(100, d.crimeLevel + naturalIncrease);
+          return {
+            ...d,
+            crimeLevel: newLevel,
+            status: newLevel > 80 ? "Critical" : newLevel > 50 ? "Rising" : ("Stable" as const),
+          };
+        }),
       };
     });
 
@@ -689,6 +792,9 @@ export function useGameState() {
               ...l,
               timestamp: new Date(l.timestamp),
             })) || [],
+          evidenceLocker: parsed.evidenceLocker || [],
+          recentNews: parsed.recentNews || [],
+          districts: parsed.districts || INITIAL_STATE.districts,
         };
 
         setGameState(hydrated);
@@ -751,12 +857,16 @@ export function useGameState() {
         addLog("Mission", `New custom directive received and processed: ${mission.title}`);
       } catch (err) {
         setError("Failed to process custom mission directive.");
-        console.error(err);
+        console.error("Directive Error:", err);
       } finally {
         setIsLoading(false);
       }
     },
-    interrogateSuspect: async (suspectId: string, history: any[], message: string) => {
+    interrogateSuspect: async (
+      suspectId: string,
+      history: InterrogationMessage[],
+      message: string,
+    ) => {
       const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
       if (!suspect) return;
       setIsLoading(true);
@@ -770,12 +880,12 @@ export function useGameState() {
         return response;
       } catch (err) {
         setError("Interrogation failed.");
-        console.error(err);
+        console.error("Interrogation Error:", err);
       } finally {
         setIsLoading(false);
       }
     },
-    resolveInterrogation: async (suspectId: string, history: any[]) => {
+    resolveInterrogation: async (suspectId: string, history: InterrogationMessage[]) => {
       const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
       if (!suspect) return;
       setIsLoading(true);
@@ -783,7 +893,7 @@ export function useGameState() {
         const result = await llmService.resolveInterrogation(suspect, history);
 
         let unlockedMission: Mission | null = null;
-        if (result.success && result.unlockedMission) {
+        if (result.cracked && result.unlockedMission) {
           unlockedMission = {
             id: crypto.randomUUID(),
             title: result.unlockedMission.title,
@@ -813,31 +923,31 @@ export function useGameState() {
             s.id === suspectId
               ? {
                   ...s,
-                  status: result.success ? "Charged" : "Released",
-                  intelRevealed: result.success ? result.intel : undefined,
+                  status: result.cracked ? "Charged" : "Released",
+                  intelRevealed: result.cracked ? result.intel : undefined,
                 }
               : s,
           ),
           activeMissions: unlockedMission
             ? [...prev.activeMissions, unlockedMission]
             : prev.activeMissions,
-          reputation: prev.reputation + result.reputationBonus,
-          budget: prev.budget + result.budgetBonus,
+          reputation: Math.min(100, Math.max(0, prev.reputation + result.reputationBonus)),
+          budget: Math.max(0, prev.budget + result.budgetBonus),
         }));
 
         addLog(
-          result.success ? "Success" : "Warning",
-          `Interrogation of ${suspect.name} concluded. ${result.intel}${unlockedMission ? " NEW INTEL LEAD ADDED TO DISPATCH." : ""}`,
+          result.cracked ? "Success" : "Warning",
+          `Interrogation of ${suspect.name} concluded. ${result.intel || result.summary}${unlockedMission ? " NEW INTEL LEAD ADDED TO DISPATCH." : ""}`,
         );
 
-        if (!result.success && result.reputationBonus < 0) {
+        if (!result.cracked && result.reputationBonus < 0) {
           addLog("Error", `Department reputation took a hit due to failed interrogation tactics.`);
         }
 
         return result;
       } catch (err) {
         setError("Failed to resolve interrogation.");
-        console.error(err);
+        console.error("Resolution Error:", err);
       } finally {
         setIsLoading(false);
       }
@@ -908,7 +1018,7 @@ export function useGameState() {
         );
       } catch (err) {
         setError("Legal proceedings failed.");
-        console.error(err);
+        console.error("Trial Error:", err);
       } finally {
         setIsLoading(false);
       }
@@ -919,6 +1029,97 @@ export function useGameState() {
         suspectsInCustody: prev.suspectsInCustody.filter((s) => s.id !== suspectId),
       }));
       addLog("Info", "Suspect case file archived and moved to long-term storage.");
+    },
+    recruitCI: (suspectId: string) => {
+      setGameState((prev) => {
+        const suspect = prev.suspectsInCustody.find((s) => s.id === suspectId);
+        if (!suspect) return prev;
+        addLog("Success", `${suspect.name} is now a Confidential Informant for the department.`);
+        return {
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.map((s) =>
+            s.id === suspectId ? { ...s, status: "CI" as const } : s,
+          ),
+          reputation: Math.max(0, prev.reputation - 5), // Recruitment is risky
+        };
+      });
+    },
+    analyzeEvidence: async (evidenceId: string) => {
+      const evidence = gameState.evidenceLocker.find((e) => e.id === evidenceId);
+      if (!evidence || evidence.status === "Analyzed") return;
+      setIsLoading(true);
+      try {
+        const report = await llmService.analyzeEvidence(evidence);
+        setGameState((prev) => ({
+          ...prev,
+          evidenceLocker: prev.evidenceLocker.map((e) =>
+            e.id === evidenceId ? { ...e, status: "Analyzed" as const, analysisReport: report } : e,
+          ),
+          budget: Math.max(0, prev.budget - 500), // Forensics cost
+        }));
+        addLog("Info", `Analysis complete for ${evidence.name}.`);
+      } catch (err) {
+        setError("Forensic analysis failed.");
+        console.error("Analysis Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    dismissNews: (newsId: string) => {
+      setGameState((prev) => ({
+        ...prev,
+        recentNews: prev.recentNews.filter((n) => n.id !== newsId),
+      }));
+    },
+    fileEvidence: (evidenceId: string) => {
+      setGameState((prev) => {
+        const item = prev.evidenceLocker.find((e) => e.id === evidenceId);
+        if (!item) return prev;
+        const rewardBudget = item.status === "Analyzed" ? 2500 : 500;
+        const rewardRep = item.status === "Analyzed" ? 5 : 1;
+
+        addLog(
+          "Success",
+          `Filed ${item.name} with the DA. Case effectiveness improved. +$${rewardBudget}, +${rewardRep} Rep.`,
+        );
+
+        return {
+          ...prev,
+          evidenceLocker: prev.evidenceLocker.filter((e) => e.id !== evidenceId),
+          budget: prev.budget + rewardBudget,
+          reputation: Math.min(100, prev.reputation + rewardRep),
+        };
+      });
+    },
+    pursueLead: async (evidenceId: string) => {
+      const evidence = gameState.evidenceLocker.find((e) => e.id === evidenceId);
+      if (!evidence || evidence.status !== "Analyzed") return;
+
+      setIsLoading(true);
+      try {
+        const leadDescription = `Based on forensic report: ${evidence.analysisReport}. Investigating potential criminal links.`;
+        const mission = await llmService.generateCustomMission(
+          leadDescription,
+          gameState.reputation,
+          gameState.officers.length,
+        );
+
+        setGameState((prev) => ({
+          ...prev,
+          activeMissions: [...prev.activeMissions, mission],
+          evidenceLocker: prev.evidenceLocker.filter((e) => e.id !== evidenceId),
+        }));
+
+        addLog(
+          "Info",
+          `NEW LEAD: Analysis of ${evidence.name} has revealed a tactical opportunity.`,
+        );
+      } catch (err) {
+        setError("Failed to generate lead from evidence.");
+        console.error("Lead Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
     },
   };
 }

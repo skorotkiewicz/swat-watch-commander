@@ -35,6 +35,11 @@ interface Props {
   onChargeSuspect: (id: string) => void;
   onProcessTrial: (id: string) => void;
   onArchiveSuspect: (id: string) => void;
+  onRecruitCI: (id: string) => void;
+  onAnalyzeEvidence: (id: string) => void;
+  onFileEvidence: (id: string) => void;
+  onPursueLead: (id: string) => void;
+  onDismissNews: (id: string) => void;
 }
 
 export function Dashboard({
@@ -62,10 +67,15 @@ export function Dashboard({
   onChargeSuspect,
   onProcessTrial,
   onArchiveSuspect,
+  onRecruitCI,
+  onAnalyzeEvidence,
+  onFileEvidence,
+  onPursueLead,
+  onDismissNews,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs" | "events" | "custody">(
-    "missions",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "squad" | "missions" | "logs" | "events" | "custody" | "evidence" | "news" | "map"
+  >("missions");
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
   const [recruitSpec, setRecruitSpec] = useState<string | undefined>(undefined);
@@ -177,6 +187,13 @@ export function Dashboard({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("map")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "map" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>🗺️</span> City Map
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("squad")}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "squad" ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
           >
@@ -205,6 +222,30 @@ export function Dashboard({
             {gameState.suspectsInCustody.length > 0 && (
               <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
                 {gameState.suspectsInCustody.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("evidence")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "evidence" ? "bg-cyan-600 text-white shadow-lg shadow-cyan-600/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>🔦</span> Evidence
+            {gameState.evidenceLocker.filter((e) => e.status === "Stored").length > 0 && (
+              <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                {gameState.evidenceLocker.filter((e) => e.status === "Stored").length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("news")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "news" ? "bg-amber-600 text-white shadow-lg shadow-amber-600/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>📰</span> News
+            {gameState.recentNews.length > 0 && (
+              <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                {gameState.recentNews.length}
               </span>
             )}
           </button>
@@ -656,10 +697,236 @@ export function Dashboard({
                         >
                           Archive Case File
                         </button>
+                      ) : s.status === "CI" ? (
+                        <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl">
+                          <p className="text-[10px] text-emerald-400 font-bold uppercase mb-1">
+                            Informant Status: ACTIVE
+                          </p>
+                          <p className="text-[10px] text-slate-400 leading-tight">
+                            Subject is providing leads from within criminal circles. Use with
+                            caution.
+                          </p>
+                        </div>
                       ) : null}
+
+                      {s.intelRevealed && s.status !== "CI" && s.status !== "Sentenced" && (
+                        <button
+                          type="button"
+                          onClick={() => onRecruitCI(s.id)}
+                          className="w-full mt-2 py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-500 hover:text-white border border-emerald-600/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                        >
+                          Recruit as Informant
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "evidence" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase underline decoration-cyan-500 decoration-4 underline-offset-8">
+                Evidence Locker
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {gameState.evidenceLocker.length === 0 ? (
+                  <div className="col-span-full py-20 text-center bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-800">
+                    <p className="text-slate-500 font-medium">Locker is empty.</p>
+                  </div>
+                ) : (
+                  gameState.evidenceLocker.map((e) => (
+                    <div
+                      key={e.id}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-cyan-500/50 transition-all flex flex-col"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-white uppercase tracking-tight">{e.name}</h3>
+                        <span
+                          className={`px-2 py-1 rounded text-[10px] font-black uppercase ${e.status === "Analyzed" ? "bg-emerald-500/20 text-emerald-400" : "bg-cyan-500/20 text-cyan-400"}`}
+                        >
+                          {e.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mb-4 flex-1">{e.description}</p>
+                      {e.analysisReport && (
+                        <div className="mb-4 p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                          <p className="text-[10px] text-cyan-500 font-bold uppercase mb-1">
+                            Forensic Report
+                          </p>
+                          <p className="text-[10px] text-slate-300 italic leading-relaxed">
+                            "{e.analysisReport}"
+                          </p>
+                        </div>
+                      )}
+                      {e.status === "Analyzed" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onFileEvidence(e.id)}
+                            className="py-2 bg-emerald-600/10 hover:bg-emerald-600 text-emerald-400 hover:text-white border border-emerald-600/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                          >
+                            File Case
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onPursueLead(e.id)}
+                            disabled={isLoading}
+                            className="py-2 bg-indigo-600/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-600/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
+                          >
+                            Pursue Lead
+                          </button>
+                        </div>
+                      )}
+                      {e.status === "Stored" && (
+                        <button
+                          type="button"
+                          onClick={() => onAnalyzeEvidence(e.id)}
+                          disabled={isLoading}
+                          className="w-full py-2 bg-cyan-600/10 hover:bg-cyan-600 text-cyan-500 hover:text-white border border-cyan-600/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                        >
+                          {isLoading ? "Analyzing..." : "Analyze ($500)"}
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "news" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase underline decoration-amber-500 decoration-4 underline-offset-8">
+                Press Coverage
+              </h2>
+              <div className="space-y-4">
+                {gameState.recentNews.length === 0 ? (
+                  <div className="py-20 text-center bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-800">
+                    <p className="text-slate-500 font-medium">No news reports.</p>
+                  </div>
+                ) : (
+                  gameState.recentNews.map((n) => (
+                    <div
+                      key={n.id}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-amber-500/50 transition-all relative overflow-hidden group"
+                    >
+                      <div
+                        className={`absolute top-0 left-0 w-1 h-full ${n.sentiment === "Positive" ? "bg-emerald-500" : n.sentiment === "Negative" ? "bg-red-500" : "bg-slate-500"}`}
+                      />
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${n.sentiment === "Positive" ? "bg-emerald-500/20 text-emerald-400" : n.sentiment === "Negative" ? "bg-red-500/20 text-red-400" : "bg-slate-500/20 text-slate-400"}`}
+                          >
+                            {n.sentiment}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-bold uppercase">
+                            {new Date(n.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onDismissNews(n.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-slate-800 rounded"
+                        >
+                          <svg
+                            className="w-3 h-3 text-slate-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            role="img"
+                            aria-label="Dismiss News"
+                          >
+                            <title>Dismiss News</title>
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      <h3 className="text-lg font-black text-white italic tracking-tight mb-2">
+                        {n.headline}
+                      </h3>
+                      <p className="text-sm text-slate-400 leading-relaxed font-serif italic">
+                        "{n.content}"
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === "map" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase underline decoration-indigo-500 decoration-4 underline-offset-8">
+                Metropolitan Crime Map
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gameState.districts.map((d) => (
+                  <div
+                    key={d.id}
+                    className="bg-slate-900 border border-slate-800 rounded-3xl p-6 relative overflow-hidden group hover:border-indigo-500/50 transition-all shadow-xl"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-black text-white uppercase tracking-tight">
+                          {d.name}
+                        </h3>
+                        <span
+                          className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded ${d.status === "Critical" ? "bg-red-500/20 text-red-400" : d.status === "Rising" ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}
+                        >
+                          {d.status}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">
+                          Crime Level
+                        </p>
+                        <p
+                          className={`text-2xl font-black ${d.crimeLevel > 70 ? "text-red-500" : d.crimeLevel > 40 ? "text-amber-500" : "text-emerald-500"}`}
+                        >
+                          {d.crimeLevel}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-6">
+                      <div
+                        className={`h-full transition-all duration-1000 ${d.crimeLevel > 70 ? "bg-red-500" : d.crimeLevel > 40 ? "bg-amber-500" : "bg-emerald-500"}`}
+                        style={{ width: `${d.crimeLevel}%` }}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase">
+                        <span className="text-slate-500">Patrol Presence</span>
+                        <span className="text-slate-300">Minimum</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] font-bold uppercase">
+                        <span className="text-slate-500">Response Time</span>
+                        <span className="text-slate-300">4-8 Mins</span>
+                      </div>
+                    </div>
+
+                    {d.crimeLevel > 80 && (
+                      <div className="mt-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl animate-pulse">
+                        <p className="text-[10px] text-red-500 font-black uppercase mb-1">
+                          Intelligence Alert
+                        </p>
+                        <p className="text-xs text-red-200">
+                          Major criminal activity detected. A High-Value Target may be operating in
+                          this sector.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

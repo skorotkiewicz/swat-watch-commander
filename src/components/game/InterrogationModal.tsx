@@ -138,13 +138,13 @@ export function InterrogationModal({
             <div className="p-6 bg-slate-950 border-2 border-cyan-500/50 rounded-2xl space-y-4 animate-in fade-in zoom-in duration-300">
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${resolution.success ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${resolution.cracked ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}
                 >
-                  {resolution.success ? "✓" : "✗"}
+                  {resolution.cracked ? "✓" : "✗"}
                 </div>
                 <div>
                   <h4 className="font-bold text-lg">
-                    {resolution.success ? "Suspect Cracked" : "Interrogation Failed"}
+                    {resolution.cracked ? "Suspect Cracked" : "Interrogation Failed"}
                   </h4>
                   <p className="text-slate-400 text-xs">{resolution.intel}</p>
                 </div>

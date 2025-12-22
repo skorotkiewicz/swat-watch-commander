@@ -19,6 +19,7 @@ const INITIAL_STATE: GameState = {
   missionsAttemptedToday: 0,
   maxMissionsPerDay: 5,
   availableEvents: [],
+  suspectsInCustody: [],
 };
 
 const STORAGE_KEY = "swat-commander-save";
@@ -60,6 +61,7 @@ export function useGameState() {
         if (parsed.missionsAttemptedToday === undefined) parsed.missionsAttemptedToday = 0;
         if (parsed.maxMissionsPerDay === undefined) parsed.maxMissionsPerDay = 5;
         if (parsed.availableEvents === undefined) parsed.availableEvents = [];
+        if (parsed.suspectsInCustody === undefined) parsed.suspectsInCustody = [];
         if (parsed.officers) {
           parsed.officers = parsed.officers.map((o: any) => ({
             ...o,
@@ -401,6 +403,25 @@ export function useGameState() {
                 rewards: mission.rewards,
               },
             };
+
+            // Capture Suspect Logic
+            if (result.success && Math.random() > 0.4) {
+              llmService
+                .generateSuspect(mission)
+                .then((suspectData) => {
+                  const suspect = {
+                    ...suspectData,
+                    id: crypto.randomUUID(),
+                    status: "Custody",
+                  };
+                  setGameState((s) => ({
+                    ...s,
+                    suspectsInCustody: [...s.suspectsInCustody, suspect],
+                  }));
+                  addLog("Info", `SUSPECT APPREHENDED: ${suspect.name} is now in custody.`);
+                })
+                .catch(console.error);
+            }
           }
           return nextState;
         });
@@ -714,5 +735,190 @@ export function useGameState() {
     generateCommunityEvent,
     exportSave,
     importSave,
+    createCustomMission: async (description: string) => {
+      setIsLoading(true);
+      try {
+        const mission = await llmService.generateCustomMission(
+          description,
+          gameState.reputation,
+          gameState.officers.length,
+        );
+        setGameState((prev) => ({
+          ...prev,
+          activeMissions: [...prev.activeMissions, mission],
+          missionsAttemptedToday: prev.missionsAttemptedToday + 1,
+        }));
+        addLog("Mission", `New custom directive received and processed: ${mission.title}`);
+      } catch (err) {
+        setError("Failed to process custom mission directive.");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    interrogateSuspect: async (suspectId: string, history: any[], message: string) => {
+      const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
+      if (!suspect) return;
+      setIsLoading(true);
+      try {
+        const response = await llmService.interrogateSuspect(
+          suspect,
+          gameState.commanderName,
+          history,
+          message,
+        );
+        return response;
+      } catch (err) {
+        setError("Interrogation failed.");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    resolveInterrogation: async (suspectId: string, history: any[]) => {
+      const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
+      if (!suspect) return;
+      setIsLoading(true);
+      try {
+        const result = await llmService.resolveInterrogation(suspect, history);
+
+        let unlockedMission: Mission | null = null;
+        if (result.success && result.unlockedMission) {
+          unlockedMission = {
+            id: crypto.randomUUID(),
+            title: result.unlockedMission.title,
+            description: result.unlockedMission.description,
+            type: result.unlockedMission.type,
+            priority: "High",
+            location: result.unlockedMission.location,
+            estimatedDuration: "2-4 hours",
+            requiredOfficers: Math.max(2, Math.floor(gameState.officers.length * 0.6)),
+            requiredSpecializations: [],
+            riskLevel: result.unlockedMission.riskLevel,
+            rewards: {
+              experience: 150,
+              reputation: result.reputationBonus,
+              budget: result.unlockedMission.rewardBudget,
+            },
+            briefing: `INTEL-DRIVEN OPERATION: Based on the interrogation of ${suspect.name}, we have a breakthrough. ${result.unlockedMission.description}`,
+            status: "Available",
+            assignedOfficers: [],
+            createdAt: new Date(),
+          };
+        }
+
+        setGameState((prev) => ({
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.map((s) =>
+            s.id === suspectId
+              ? {
+                  ...s,
+                  status: result.success ? "Charged" : "Released",
+                  intelRevealed: result.success ? result.intel : undefined,
+                }
+              : s,
+          ),
+          activeMissions: unlockedMission
+            ? [...prev.activeMissions, unlockedMission]
+            : prev.activeMissions,
+          reputation: prev.reputation + result.reputationBonus,
+          budget: prev.budget + result.budgetBonus,
+        }));
+
+        addLog(
+          result.success ? "Success" : "Warning",
+          `Interrogation of ${suspect.name} concluded. ${result.intel}${unlockedMission ? " NEW INTEL LEAD ADDED TO DISPATCH." : ""}`,
+        );
+
+        if (!result.success && result.reputationBonus < 0) {
+          addLog("Error", `Department reputation took a hit due to failed interrogation tactics.`);
+        }
+
+        return result;
+      } catch (err) {
+        setError("Failed to resolve interrogation.");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    releaseSuspect: (suspectId: string) => {
+      setGameState((prev) => {
+        const suspect = prev.suspectsInCustody.find((s) => s.id === suspectId);
+        if (!suspect) return prev;
+
+        const reputationChange = suspect.status === "Interrogated" ? 0 : -2;
+        addLog("Warning", `${suspect.name} has been released due to lack of evidence.`);
+
+        return {
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.map((s) =>
+            s.id === suspectId ? { ...s, status: "Released" as const } : s,
+          ),
+          reputation: Math.max(0, prev.reputation + reputationChange),
+        };
+      });
+    },
+    chargeSuspect: (suspectId: string) => {
+      setGameState((prev) => {
+        const suspect = prev.suspectsInCustody.find((s) => s.id === suspectId);
+        if (!suspect) return prev;
+
+        const budgetCost = 1000;
+        const reputationGain = 5;
+        addLog("Success", `Official charges filed against ${suspect.name}. Processing for trial.`);
+
+        return {
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.map((s) =>
+            s.id === suspectId ? { ...s, status: "Charged" as const } : s,
+          ),
+          budget: Math.max(0, prev.budget - budgetCost),
+          reputation: Math.min(100, prev.reputation + reputationGain),
+        };
+      });
+    },
+    processTrial: async (suspectId: string) => {
+      const suspect = gameState.suspectsInCustody.find((s) => s.id === suspectId);
+      if (!suspect || suspect.status !== "Charged") return;
+
+      setIsLoading(true);
+      try {
+        const result = await llmService.generateTrialOutcome(suspect, gameState.commanderName);
+
+        setGameState((prev) => ({
+          ...prev,
+          suspectsInCustody: prev.suspectsInCustody.map((s) =>
+            s.id === suspectId
+              ? {
+                  ...s,
+                  status: "Sentenced" as const,
+                  trialVerdict: result.verdict,
+                  trialSentence: result.sentence,
+                }
+              : s,
+          ),
+          reputation: Math.min(100, Math.max(0, prev.reputation + result.reputationImpact)),
+          budget: prev.budget + result.budgetImpact,
+        }));
+
+        addLog(
+          result.verdict === "Guilty" ? "Success" : "Warning",
+          `TRIAL CONCLUDED: ${suspect.name} - Verdict: ${result.verdict}. Sentence: ${result.sentence}`,
+        );
+      } catch (err) {
+        setError("Legal proceedings failed.");
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    archiveSuspect: (suspectId: string) => {
+      setGameState((prev) => ({
+        ...prev,
+        suspectsInCustody: prev.suspectsInCustody.filter((s) => s.id !== suspectId),
+      }));
+      addLog("Info", "Suspect case file archived and moved to long-term storage.");
+    },
   };
 }

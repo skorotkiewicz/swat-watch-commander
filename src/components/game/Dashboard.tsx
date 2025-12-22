@@ -1,7 +1,8 @@
 // Main Game Dashboard - HQ View
 import { useState } from "react";
-import type { GameState, Mission } from "../../types/game";
+import type { GameState, InterrogationMessage, Mission, Suspect } from "../../types/game";
 import { CommunityEvents } from "./CommunityEvents";
+import { InterrogationModal } from "./InterrogationModal";
 import { MissionCard } from "./MissionCard";
 import { OfficerCard } from "./OfficerCard";
 
@@ -23,6 +24,17 @@ interface Props {
   onCancelEvent: (eventId: string) => void;
   onExportSave: () => void;
   onImportSave: (json: string) => void;
+  onGenerateCustomMission: (description: string) => void;
+  onInterrogate?: (
+    suspectId: string,
+    history: InterrogationMessage[],
+    message: string,
+  ) => Promise<string | undefined>;
+  onResolveInterrogation?: (suspectId: string, history: InterrogationMessage[]) => Promise<any>;
+  onReleaseSuspect: (id: string) => void;
+  onChargeSuspect: (id: string) => void;
+  onProcessTrial: (id: string) => void;
+  onArchiveSuspect: (id: string) => void;
 }
 
 export function Dashboard({
@@ -43,11 +55,24 @@ export function Dashboard({
   onCancelEvent,
   onExportSave,
   onImportSave,
+  onGenerateCustomMission,
+  onInterrogate,
+  onResolveInterrogation,
+  onReleaseSuspect,
+  onChargeSuspect,
+  onProcessTrial,
+  onArchiveSuspect,
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs" | "events">("missions");
+  const [activeTab, setActiveTab] = useState<"squad" | "missions" | "logs" | "events" | "custody">(
+    "missions",
+  );
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
   const [selectedOfficerIds, setSelectedOfficerIds] = useState<string[]>([]);
   const [recruitSpec, setRecruitSpec] = useState<string | undefined>(undefined);
+  const [customDirective, setCustomDirective] = useState("");
+  const [activeInterrogationSuspect, setActiveInterrogationSuspect] = useState<Suspect | null>(
+    null,
+  );
 
   const handleMissionClick = (mission: Mission) => {
     if (mission.status === "In Progress") {
@@ -170,6 +195,18 @@ export function Dashboard({
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "events" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
           >
             <span>🤝</span> Community
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("custody")}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === "custody" ? "bg-red-600 text-white shadow-lg shadow-red-600/20" : "hover:bg-slate-900 border border-transparent hover:border-slate-800"}`}
+          >
+            <span>🚔</span> Custody{" "}
+            {gameState.suspectsInCustody.length > 0 && (
+              <span className="ml-auto bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                {gameState.suspectsInCustody.length}
+              </span>
+            )}
           </button>
 
           {gameState.lastDismissedOfficer && onRehireLastOfficer && (
@@ -342,6 +379,37 @@ export function Dashboard({
                 </button>
               </div>
 
+              {/* Custom Mission Input */}
+              <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex gap-4 items-end">
+                <div className="flex-1">
+                  <label
+                    htmlFor="custom-mission"
+                    className="block text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2"
+                  >
+                    Custom Operational Directive
+                  </label>
+                  <input
+                    id="custom-mission"
+                    type="text"
+                    value={customDirective}
+                    onChange={(e) => setCustomDirective(e.target.value)}
+                    placeholder="Describe a custom mission (e.g. 'Rub a bank', 'Clean up city central')..."
+                    className="w-full bg-slate-950/50 border border-slate-700/50 rounded-xl px-4 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={!customDirective.trim() || isLoading}
+                  onClick={() => {
+                    onGenerateCustomMission(customDirective);
+                    setCustomDirective("");
+                  }}
+                  className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 font-bold text-sm rounded-xl transition-all disabled:opacity-50 border border-slate-700"
+                >
+                  Process Directive
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {gameState.activeMissions.length === 0 ? (
                   <div className="col-span-full py-20 text-center bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-800">
@@ -462,8 +530,152 @@ export function Dashboard({
               isLoading={isLoading}
             />
           )}
+
+          {activeTab === "custody" && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-black italic tracking-tighter uppercase underline decoration-red-600 decoration-4 underline-offset-8">
+                Holding Cells
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {gameState.suspectsInCustody.length === 0 ? (
+                  <div className="col-span-full py-20 text-center bg-slate-900/30 rounded-3xl border-2 border-dashed border-slate-800">
+                    <p className="text-slate-500 font-medium">No suspects in custody.</p>
+                  </div>
+                ) : (
+                  gameState.suspectsInCustody.map((s) => (
+                    <div
+                      key={s.id}
+                      className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-red-500/50 transition-all group"
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="font-black text-lg text-white uppercase tracking-tight">
+                            {s.name}
+                          </h3>
+                          <p className="text-xs text-red-400 font-bold uppercase tracking-widest">
+                            {s.crime}
+                          </p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded text-[10px] font-black uppercase ${
+                            s.status === "Custody"
+                              ? "bg-red-500/20 text-red-400"
+                              : s.status === "Interrogated"
+                                ? "bg-amber-500/20 text-amber-400"
+                                : s.status === "Charged"
+                                  ? "bg-blue-500/20 text-blue-400"
+                                  : s.status === "Sentenced"
+                                    ? "bg-purple-500/20 text-purple-400"
+                                    : "bg-slate-500/20 text-slate-400"
+                          }`}
+                        >
+                          {s.status}
+                        </span>
+                      </div>
+                      <div className="space-y-3 mb-5">
+                        <div className="flex justify-between text-[10px] font-bold uppercase">
+                          <span className="text-slate-500 text-[10px]">Personality</span>
+                          <span className="text-slate-300">{s.personality}</span>
+                        </div>
+                        <div className="flex justify-between text-[10px] font-bold uppercase">
+                          <span className="text-slate-500 text-[10px]">Resistance</span>
+                          <span className="text-red-500">{s.resistance}%</span>
+                        </div>
+                        {s.intelRevealed && (
+                          <div className="pt-2 border-t border-slate-800 mt-2">
+                            <span className="text-[10px] text-cyan-500 font-bold uppercase block mb-1">
+                              Revealed Intel
+                            </span>
+                            <p className="text-xs text-slate-300 italic leading-relaxed">
+                              "{s.intelRevealed}"
+                            </p>
+                          </div>
+                        )}
+                        {(s.trialVerdict || s.trialSentence) && (
+                          <div className="pt-2 border-t border-purple-900/50 mt-2 bg-purple-500/5 p-2 rounded-lg">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] text-purple-400 font-bold uppercase">
+                                Trial Outcome
+                              </span>
+                              <span
+                                className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${s.trialVerdict === "Guilty" ? "bg-red-500/20 text-red-400" : "bg-emerald-500/20 text-emerald-400"}`}
+                              >
+                                {s.trialVerdict}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-200 font-medium">
+                              Sentence: {s.trialSentence}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {s.status === "Custody" && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveInterrogationSuspect(s)}
+                          className="w-full py-2 bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all mb-2"
+                        >
+                          Begin Interrogation
+                        </button>
+                      )}
+                      {s.status === "Charged" && (
+                        <button
+                          type="button"
+                          onClick={() => onProcessTrial(s.id)}
+                          className="w-full py-2 bg-purple-600/20 hover:bg-purple-600 text-purple-400 hover:text-white border border-purple-600/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all mb-2"
+                        >
+                          Send to Trial
+                        </button>
+                      )}
+                      {s.status === "Custody" ||
+                      s.status === "Interrogated" ||
+                      s.status === "Charged" ? (
+                        <div className="flex gap-2">
+                          {s.status !== "Charged" && (
+                            <button
+                              type="button"
+                              onClick={() => onChargeSuspect(s.id)}
+                              className="flex-1 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-500 hover:text-white border border-blue-600/30 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                            >
+                              Charge
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => onReleaseSuspect(s.id)}
+                            className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                          >
+                            Release
+                          </button>
+                        </div>
+                      ) : s.status === "Sentenced" || s.status === "Released" ? (
+                        <button
+                          type="button"
+                          onClick={() => onArchiveSuspect(s.id)}
+                          className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all"
+                        >
+                          Archive Case File
+                        </button>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Interrogation Modal */}
+      {activeInterrogationSuspect && onInterrogate && onResolveInterrogation && (
+        <InterrogationModal
+          suspect={activeInterrogationSuspect}
+          onInterrogate={(msg, hist) => onInterrogate(activeInterrogationSuspect.id, hist, msg)}
+          onResolve={(hist) => onResolveInterrogation(activeInterrogationSuspect.id, hist)}
+          onClose={() => setActiveInterrogationSuspect(null)}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Deployment Modal */}
       {selectedMission && (

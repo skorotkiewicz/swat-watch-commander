@@ -109,6 +109,24 @@ export interface CommunityEvent {
   status: "Available" | "Scheduled" | "Completed";
 }
 
+export interface Suspect {
+  id: string;
+  name: string;
+  crime: string;
+  personality: string;
+  intelLevel: number; // 0-100, how much they know
+  resistance: number; // 0-100, how hard they are to crack
+  status: "Custody" | "Interrogated" | "Released" | "Charged" | "Sentenced" | "Archived";
+  intelRevealed?: string;
+  trialVerdict?: string;
+  trialSentence?: string;
+}
+
+export interface InterrogationMessage {
+  role: "Commander" | "Suspect";
+  text: string;
+}
+
 export interface GameState {
   commanderName: string;
   squadName: string;
@@ -126,6 +144,7 @@ export interface GameState {
   maxMissionsPerDay: number;
   lastDismissedOfficer?: Officer | null;
   availableEvents: CommunityEvent[];
+  suspectsInCustody: Suspect[];
 }
 
 export interface LogEntry {

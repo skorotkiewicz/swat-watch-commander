@@ -1,7 +1,14 @@
 // LLM Service for SWAT Watch Commander
 // Single unified call to OpenAI-compatible API
 
-import type { CommunityEvent, Mission, MissionEvent, MissionOption, Officer } from "../types/game";
+import type {
+  CommunityEvent,
+  Mission,
+  MissionEvent,
+  MissionOption,
+  Officer,
+  Suspect,
+} from "../types/game";
 
 const LLM_URL = import.meta.env.VITE_LLM_URL || "http://localhost:8888/v1/chat/completions";
 const LLM_MODEL = import.meta.env.VITE_LLM_MODEL || "llama3.1";
@@ -24,11 +31,17 @@ interface LLMMessage {
 }
 
 // Single unified LLM call function
-async function callLLM(prompt: string, temperature = 0.8): Promise<string> {
-  const messages: LLMMessage[] = [
-    { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: prompt },
-  ];
+async function callLLM(
+  promptOrMessages: string | LLMMessage[],
+  temperature = 0.8,
+): Promise<string> {
+  const messages: LLMMessage[] =
+    typeof promptOrMessages === "string"
+      ? [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: promptOrMessages },
+        ]
+      : promptOrMessages;
 
   const response = await fetch(LLM_URL, {
     method: "POST",
@@ -440,4 +453,209 @@ Respond with ONLY valid JSON in this exact format:
     console.error("Failed to parse community event:", e, response);
     throw new Error("Failed to generate community event");
   }
+}
+
+export async function generateCustomMission(
+  description: string,
+  reputation: number,
+  squadSize: number,
+): Promise<Mission> {
+  const prompt = `A player has described a custom SWAT mission. Your job is to turn this into a structured mission object.
+  
+  Player Description: "${description}"
+  Current Squad Reputation: ${reputation}/100
+  
+  CRITICAL REALISM RULE: If the player describes something unethical, illegal, or "corrupt" (like robbing a bank, accepting a bribe, or executing someone), the mission should be generated BUT the reputation reward should be HEAVILY NEGATIVE (e.g., -30 to -50) and the budget reward might be higher. If it's a helpful community mission (like picking up garbage or rescue), the reputation reward should be positive.
+  
+  Respond with ONLY valid JSON in this exact format:
+  {
+    "title": "Short impactful title for the custom mission",
+    "description": "Refined 1-2 sentence description based on the player's input",
+    "type": "Hostage Rescue" | "High-Risk Warrant" | "Active Shooter" | "Barricaded Suspect" | "VIP Protection" | "Drug Raid" | "Bomb Threat" | "Custom Operation",
+    "priority": "Low" | "Medium" | "High" | "Critical",
+    "location": "A realistic location based on the description",
+    "estimatedDuration": "e.g., '1-3 hours'",
+    "requiredOfficers": 1-8,
+    "requiredSpecializations": ["list", "of", "recommended", "specializations"],
+    "riskLevel": 1-10,
+    "rewards": {
+      "experience": 0-200,
+      "reputation": -50 to 50,
+      "budget": 0-100000
+    },
+    "briefing": "Detailed 3-5 sentence tactical briefing turning the player's input into a professional operational order."
+  }`;
+
+  const response = await callLLM(prompt);
+
+  try {
+    const data = extractJSON(response) as {
+      title: string;
+      description: string;
+      type: Mission["type"];
+      priority: Mission["priority"];
+      location: string;
+      estimatedDuration: string;
+      requiredOfficers: number;
+      requiredSpecializations: string[];
+      riskLevel: number;
+      rewards: { experience: number; reputation: number; budget: number };
+      briefing: string;
+    };
+
+    return {
+      id: crypto.randomUUID(),
+      title: data.title,
+      description: data.description,
+      type: data.type,
+      priority: data.priority,
+      location: data.location,
+      estimatedDuration: data.estimatedDuration,
+      requiredOfficers: Math.min(squadSize, data.requiredOfficers || 4),
+      requiredSpecializations: data.requiredSpecializations || [],
+      riskLevel: Math.min(10, Math.max(1, data.riskLevel || 5)),
+      rewards: {
+        experience: data.rewards.experience,
+        reputation: data.rewards.reputation,
+        budget: data.rewards.budget,
+      },
+      briefing: data.briefing,
+      status: "Available",
+      assignedOfficers: [],
+      createdAt: new Date(),
+    };
+  } catch (e) {
+    console.error("Failed to parse custom mission:", e, response);
+    throw new Error("Failed to generate custom mission");
+  }
+}
+
+export async function generateSuspect(mission: Mission): Promise<any> {
+  const prompt = `Generate a realistic suspect apprehended during a SWAT mission.
+  
+  Mission: ${mission.title} (${mission.type})
+  Location: ${mission.location}
+  
+  Respond with ONLY valid JSON:
+  {
+    "name": "Full Name",
+    "crime": "Specific crime related to the mission",
+    "personality": "e.g., Cocky, Terrified, Professional Criminal, Mentally Unstable, Cooperative",
+    "intelLevel": 20-90,
+    "resistance": 30-95
+  }`;
+
+  const response = await callLLM(prompt);
+  return extractJSON(response);
+}
+
+export async function interrogateSuspect(
+  suspect: any,
+  commanderName: string,
+  history: { role: string; text: string }[],
+  newMessage: string,
+): Promise<string> {
+  const interrogationSystemPrompt = `You are playing the role of a suspect in an interrogation room.
+  
+  Suspect Name: ${suspect.name}
+  Crime: ${suspect.crime}
+  Personality: ${suspect.personality}
+  Resistance: ${suspect.resistance}/100
+  
+  Interrogator: Commander ${commanderName}
+  
+  You must remain in character. Your response should reflect your personality and resistance level. 
+  If the commander is being clever, aggressive, or empathetic, you might reveal small snippets of truth, or stay silent, or lie.
+  Keep it brief (1-3 sentences).
+  
+  Respond ONLY with the suspect's direct speech.`;
+
+  const messages: LLMMessage[] = [
+    { role: "system", content: interrogationSystemPrompt },
+    ...history.map((h) => ({
+      role: (h.role === "Commander" ? "user" : "assistant") as "user" | "assistant",
+      content: h.text,
+    })),
+    { role: "user", content: newMessage },
+  ];
+
+  return await callLLM(messages, 0.9);
+}
+
+export async function resolveInterrogation(
+  suspect: any,
+  history: { role: string; text: string }[],
+): Promise<{
+  success: boolean;
+  intel: string;
+  reputationBonus: number;
+  budgetBonus: number;
+  unlockedMission?: {
+    title: string;
+    description: string;
+    type: Mission["type"];
+    riskLevel: number;
+    location: string;
+    rewardBudget: number;
+  };
+}> {
+  const historyText = history.map((h) => `${h.role}: ${h.text}`).join("\n");
+
+  const prompt = `Based on the following interrogation session, decide if the suspect 'cracked' and provided valuable intel.
+  
+  Suspect: ${suspect.name}
+  Personality: ${suspect.personality}
+  Original Resistance: ${suspect.resistance}/100
+  
+  Transcript:
+  ${historyText}
+  
+  Evaluate if the commander's tactics were effective enough to lower the suspect's resistance and get the truth.
+
+  Respond with ONLY valid JSON:
+  {
+    "success": true/false,
+    "intel": "A 1-sentence description of the intel gathered (if success is true) or why they didn't crack",
+    "reputationBonus": 0-15,
+    "budgetBonus": 0-10000,
+    "unlockedMission": {
+      "title": "Short impactful title for a follow-up raid/operation",
+      "description": "How this mission relates to the intel gathered",
+      "type": "Drug Raid" | "Hostage Rescue" | "High-Risk Warrant" | "Bomb Threat",
+      "riskLevel": 1-10,
+      "location": "A related address",
+      "rewardBudget": 10000-50000
+    } (only if success is true and intel is significant)
+  }`;
+
+  const response = await callLLM(prompt);
+  return extractJSON(response) as any;
+}
+
+export async function generateTrialOutcome(
+  suspect: Suspect,
+  commanderName: string,
+): Promise<{ verdict: string; sentence: string; reputationImpact: number; budgetImpact: number }> {
+  const prompt = `Generate a realistic legal trial outcome for a suspect apprehended by SWAT.
+  
+  Suspect: ${suspect.name}
+  Crime: ${suspect.crime}
+  Intel Gathered: ${suspect.intelRevealed || "None"}
+  Personality: ${suspect.personality}
+  
+  Commander in charge: ${commanderName}
+  
+  Based on the crime and evidence (intel), determine the verdict and sentence. 
+  If intel was gathered, the conviction is much more likely to be successful and severe.
+  
+  Respond with ONLY valid JSON:
+  {
+    "verdict": "Guilty" | "Not Guilty" | "Case Dismissed",
+    "sentence": "A brief sentence (e.g. '15 years in federal prison', '5 years probation')",
+    "reputationImpact": -10 to 20,
+    "budgetImpact": -5000 to 15000
+  }`;
+
+  const response = await callLLM(prompt, 0.7);
+  return extractJSON(response) as any;
 }

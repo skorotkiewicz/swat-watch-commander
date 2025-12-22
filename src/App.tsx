@@ -35,6 +35,13 @@ function App() {
     cancelEvent,
     exportSave,
     importSave,
+    createCustomMission,
+    interrogateSuspect,
+    resolveInterrogation,
+    releaseSuspect,
+    chargeSuspect,
+    processTrial,
+    archiveSuspect,
   } = useGameState();
 
   const [activeMissionId, setActiveMissionId] = useState<string | null>(null);
@@ -138,6 +145,13 @@ function App() {
         onCancelEvent={cancelEvent}
         onExportSave={exportSave}
         onImportSave={importSave}
+        onGenerateCustomMission={createCustomMission}
+        onInterrogate={interrogateSuspect}
+        onResolveInterrogation={resolveInterrogation}
+        onReleaseSuspect={releaseSuspect}
+        onChargeSuspect={chargeSuspect}
+        onProcessTrial={processTrial}
+        onArchiveSuspect={archiveSuspect}
       />
 
       {/* Advance Day Transition */}

@@ -776,6 +776,153 @@ export async function generateNickname(
   return response.replace(/['"]/g, "").trim();
 }
 
+// 🎭 SOUL ENGINE - Making content feel human
+export async function generateQuietMoment(
+  missionTitle: string,
+  outcome: string,
+  officers: Officer[],
+): Promise<{ moment: string; whoIsInvolved: string[]; tone: string }> {
+  const prompt = `The mission "${missionTitle}" just ended. ${outcome}
+
+Now generate the QUIET MOMENT - what happens after the action stops.
+Not the debrief. Not the report. The human part.
+
+Officers present: ${officers.map((o) => `${o.name} (${o.specialization})`).join(", ")}
+
+This could be:
+- Two officers in the parking lot, not quite ready to go home
+- Someone sitting in their car, hands still shaking, staring at nothing
+- A phone call to check that their kid is sleeping safe
+- Looking at a photo in a locker
+- The weight of a trigger not pulled, or one that was
+- Coffee that goes cold because no one feels like drinking it
+- Someone humming a song their mother used to sing
+- The silence in the van on the drive back
+
+Make it SPECIFIC. Not "he thought about his family" but "he pulled up the photo of his daughter's gap-toothed smile and just stared at it for three red lights."
+
+The soul is in the details. The pause before the sigh. The text message typed and deleted.
+
+Respond with ONLY valid JSON:
+{
+  "moment": "2-3 sentences of this specific quiet moment",
+  "whoIsInvolved": ["officer name(s)"],
+  "whatItReveals": "what this tells us about them",
+  "tone": "warm/melancholic/tense/hopeful/grieving"
+}`;
+
+  const response = await callLLM(prompt, 0.9);
+  return extractJSON(response) as any;
+}
+
+export async function generateRelationshipMoment(
+  officer1: Officer,
+  officer2: Officer,
+): Promise<{
+  sharedMemory: string;
+  currentDynamic: string;
+  insideJoke: string;
+  unsaidThing: string;
+}> {
+  const prompt = `Create the emotional HISTORY between these two SWAT officers.
+
+${officer1.name} - ${officer1.specialization}, ${officer1.rank}
+${officer2.name} - ${officer2.specialization}, ${officer2.rank}
+
+Don't tell me they're "friends" or "partners." 
+Tell me about the night in the hospital waiting room.
+The argument in the parking lot that neither will mention.
+The time one covered for the other.
+The stupid bet they made years ago that one never paid up.
+What they call each other when no one's listening.
+
+Relationships aren't labels. They're accumulated moments.
+
+Respond with ONLY valid JSON:
+{
+  "sharedMemory": "A specific moment they both carry - be detailed, include sensory details",
+  "currentDynamic": "How they are NOW with each other, not just history",
+  "unsaidThing": "Something between them that's never been spoken",
+  "insideJoke": "Something that only makes sense to them - be specific and human"
+}`;
+
+  const response = await callLLM(prompt, 0.9);
+  return extractJSON(response) as any;
+}
+
+export async function generateLingeringMemory(
+  officer: Officer,
+  traumaticEvent: string,
+): Promise<{
+  trigger: string;
+  avoidance: string;
+  nightVersion: string;
+  smallProgress: string;
+}> {
+  const prompt = `Officer ${officer.name} was involved in: "${traumaticEvent}"
+
+Now generate how this LINGERS. Not "they were affected."
+Show me the specific ways it shows up.
+
+PTSD isn't a montage. It's:
+- A song on the radio that makes you pull over
+- A smell that stops you in a grocery store  
+- A word your kid says that hits different now
+- Checking the locks three times, then once more
+- The dream that wakes you, and worse, the nights without dreams
+- What you order now that you didn't before
+- The route you drive to avoid that street
+- The colleague you can't look in the eye
+
+What specifically haunts ${officer.name}?
+What small ordinary thing is now impossible?
+What do they do at 3 AM when sleep won't come?
+
+Respond with ONLY valid JSON:
+{
+  "trigger": "Specific sensory trigger that brings it back",
+  "avoidance": "What they now avoid - be specific",
+  "nightVersion": "What happens when it's dark and quiet and they're alone",
+  "smallProgress": "One tiny sign of healing, if any"
+}`;
+
+  const response = await callLLM(prompt, 0.9);
+  return extractJSON(response) as any;
+}
+
+export async function generateMissionNarrative(
+  mission: Mission,
+  officers: Officer[],
+  eventSummary: string,
+  outcome: string,
+): Promise<string> {
+  const prompt = `Write this SWAT mission as a STORY with soul.
+
+Mission: "${mission.title}" at ${mission.location}
+Team: ${officers.map((o) => o.name).join(", ")}
+What happened: ${eventSummary}
+Outcome: ${outcome}
+
+Tell this story with SOUL. Not a report. Not a summary.
+Include:
+
+- The moment before entry, what each person was thinking
+- A small detail that wouldn't be in any report (a child's drawing on the fridge, a dog that didn't bark, the smell of someone's dinner getting cold)
+- The decision that didn't feel like a decision at the time
+- What the sounds were, not just "gunfire" but "three shots, pause, one more"
+- A fragment of conversation, half a sentence, the thing someone said
+- What nobody said but everybody was thinking
+- The drive back, what was on the radio, who spoke first
+- Something someone will remember in 20 years
+
+The difference between "we cleared the house" and literature
+is the specific weight of a specific door in a specific hand.
+
+Write 3-4 paragraphs. No JSON, just the narrative.`;
+
+  return await callLLM(prompt, 0.9);
+}
+
 const llmService = {
   generateOfficer,
   calculateSalary,
@@ -794,13 +941,18 @@ const llmService = {
   generateNewsStory,
   analyzeEvidence,
   generateAAR,
-  // 🎮 NEW FUN FEATURES
+  // 🎮 FUN FEATURES
   generateRandomEvent,
   generateNemesis,
   generateNemesisMission,
   generateMedal,
   generateMoraleEvents,
   generateNickname,
+  // 🎭 SOUL ENGINE
+  generateQuietMoment,
+  generateRelationshipMoment,
+  generateLingeringMemory,
+  generateMissionNarrative,
 };
 
 export default llmService;
